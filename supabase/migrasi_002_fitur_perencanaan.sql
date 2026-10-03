@@ -121,4 +121,3 @@ create policy pesanan_bayar_akses_penuh on public.pesanan_bayar
   for all to public using (true) with check (true);
 create policy stok_opname_akses_penuh on public.stok_opname
   for all to public using (true) with check (true);
-
