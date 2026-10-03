@@ -28,6 +28,30 @@ Supabase saat online.
   Espresso*, portrait terkunci, 60 FPS, feedback murni visual + haptik
   (tanpa audio).
 
+## Status Pengembangan
+
+- [x] **Auth owner** — daftar/masuk (Supabase Auth), Master PIN 6 digit +
+      biometrik, profil tersimpan di SQLite.
+- [x] **Data layer** — 12 model Bahasa Indonesia + SQLite operasional
+      (`status_sinkron`, `diperbarui_pada`, `apakah_dihapus`) + seed kategori/menu.
+- [x] **Kasir & shift** — pilih profil kasir, PIN kasir (SHA-256+salt),
+      buka/tutup shift + hitung selisih otomatis + log audit.
+- [x] **POS** — tab kategori, grid menu 2 kolom, badge stok menipis/habis,
+      paket kombo, keranjang + bottom sheet (ubah jumlah, hapus, catatan).
+- [x] **Open bill** — tagihan per meja/nama pelanggan, pesanan susulan,
+      split bill (pindah item ke nota baru), tutup tagihan.
+- [x] **Pembayaran** — tunai (keypad + kembalian) / non-tunai + foto bukti
+      in-app (kompresi 100–180 KB, upload ke Storage `bukti-pembayaran`
+      saat online); stok berkurang otomatis saat lunas.
+- [x] **Void / kasbon / kas keluar** — void wajib PIN owner + alasan
+      (audit), kasbon + cicilan, kas keluar per shift.
+- [x] **Stok, kombo & sinkron** — kelola stok, CRUD paket kombo,
+      sync engine upload-only tiap 2 menit (termasuk soft-delete).
+- [x] **Printer & dashboard owner** — cetak nota via Bluetooth thermal
+      printer, dashboard (omzet, pesanan, kasbon, stok), katalog, laporan
+      7 hari, viewer log audit, kelola akun kasir + PIN.
+- [ ] Uji cetak di printer fisik (belum ada perangkat saat pengembangan).
+
 ## Arsitektur
 
 ```

@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Fase 5: kamera in-app untuk foto bukti pembayaran non-tunai. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Kamera opsional: fitur foto bukti disembunyikan bila tak ada kamera. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <application
         android:label="warkop_doa_ambu"
         android:name="${applicationName}"
