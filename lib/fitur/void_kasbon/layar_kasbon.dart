@@ -14,6 +14,7 @@ import '../../bersama/widget/tombol_kaca.dart';
 import '../../data/model/kasbon.dart';
 import '../../data/model/log_audit.dart';
 import '../kasir/penyedia_kasir.dart';
+import '../../bersama/util/waktu_wib.dart';
 
 /// Nama bulan Bahasa Indonesia untuk format tanggal manual (tanpa intl).
 const _namaBulan = [
@@ -325,7 +326,7 @@ class _KartuKasbon extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'Jatuh tempo: ${_formatTanggal(kasbon.jatuhTempo!.toLocal())}',
+                    'Jatuh tempo: ${_formatTanggal(keWib(kasbon.jatuhTempo!))}',
                     style:
                         Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: skema.onSurfaceVariant,

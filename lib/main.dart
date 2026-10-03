@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/penyedia.dart';
 import 'app/tema/tema_app.dart';
+import 'bersama/util/waktu_wib.dart';
+import 'fitur/stok_kombo/layanan_notifikasi.dart';
 import 'fitur/stok_kombo/penyedia_sinkron.dart';
 
 /// Titik masuk aplikasi Warkop Doa Ambu.
@@ -18,6 +20,14 @@ import 'fitur/stok_kombo/penyedia_sinkron.dart';
 ///   spasi/newline yang membuat API key/URL ditolak.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Database zona waktu untuk konversi eksplisit ke Asia/Jakarta (WIB).
+  // Semua batas hari & tampilan jam memakai WIB, bukan zona perangkat.
+  inisialisasiZonaWaktu();
+
+  // Notifikasi lokal (peringatan bahan menipis). Izin diminta di sini;
+  // pengecekan jalan tiap sinkronisasi.
+  await LayananNotifikasi.inisialisasi();
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
