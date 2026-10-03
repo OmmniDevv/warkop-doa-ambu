@@ -94,6 +94,24 @@ class NotifikasiKeranjang extends Notifier<List<BarisKeranjang>> {
     ];
   }
 
+  /// Ubah diskon satu baris (nominal rupiah untuk seluruh baris, atau
+  /// persen 0–100). Keduanya dinolkan untuk menghapus diskon.
+  void ubahDiskonItem(
+    String idBaris, {
+    int nominal = 0,
+    double persen = 0,
+  }) {
+    state = [
+      for (final baris in state)
+        if (baris.idBaris == idBaris)
+          baris.salin()
+            ..diskonNominal = nominal < 0 ? 0 : nominal
+            ..diskonPersen = persen.clamp(0, 100).toDouble()
+        else
+          baris,
+    ];
+  }
+
   /// Kosongkan seluruh keranjang.
   void kosongkan() {
     state = const [];
