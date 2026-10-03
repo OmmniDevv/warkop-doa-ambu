@@ -961,17 +961,6 @@ class DatabaseLokal {
     return Bahan.dariBaris(baris.first);
   }
 
-  /// Daftar resep (takaran bahan) untuk satu [idMenu].
-  Future<List<Resep>> daftarResepMenu(String idMenu) async {
-    final db = await this.db;
-    final baris = await db.query(
-      'resep',
-      where: 'id_menu = ?',
-      whereArgs: [idMenu],
-    );
-    return baris.map(Resep.dariBaris).toList();
-  }
-
   /// Kurangi stok bahan sesuai resep [idMenu] × [jumlahMenu] terjual.
   ///
   /// Mengembalikan bahan-bahan yang stoknya kini menipis
@@ -985,7 +974,8 @@ class DatabaseLokal {
     final db = await this.db;
     final sekarang = _sekarangUtc();
     final menipis = <Bahan>[];
-    for (final baris in resep) {
+    for (final lengkap in resep) {
+      final baris = lengkap.resep;
       await db.rawUpdate(
         '''
         UPDATE bahan
@@ -1163,4 +1153,3 @@ class DatabaseLokal {
     );
   }
 }
-
