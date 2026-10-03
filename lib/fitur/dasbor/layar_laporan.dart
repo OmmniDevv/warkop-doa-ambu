@@ -12,6 +12,8 @@ import '../../bersama/widget/tombol_kaca.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/pesanan.dart';
 import 'pengekspor_laporan.dart';
+import 'pengekspor_pdf.dart';
+import 'direktori_ekspor.dart';
 import 'util_tanggal.dart';
 
 /// Seluruh pesanan untuk agregasi laporan (7 hari terakhir + harian).
@@ -100,8 +102,8 @@ class _LayarLaporanState extends ConsumerState<LayarLaporan> {
     }
   }
 
-  /// Buka lembar pilihan export Excel (jenis laporan + periode).
-  Future<void> _bukaEksporExcel() async {
+  /// Buka lembar pilihan export (PDF & Excel): jenis laporan + periode.
+  Future<void> _bukaEkspor() async {
     HapticFeedback.lightImpact();
     final profil = await ref.read(penyediaProfilPemilik.future);
     if (!mounted) return;
@@ -112,7 +114,7 @@ class _LayarLaporanState extends ConsumerState<LayarLaporan> {
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(ctx).viewInsets.bottom,
         ),
-        child: _LembarEksporExcel(
+        child: _LembarEkspor(
           dibuatOleh: profil?.namaPemilik ?? 'Owner',
           induk: context,
         ),
@@ -130,8 +132,8 @@ class _LayarLaporanState extends ConsumerState<LayarLaporan> {
         actions: [
           IconButton(
             icon: const Icon(Icons.download_outlined),
-            tooltip: 'Export ke Excel',
-            onPressed: _bukaEksporExcel,
+            tooltip: 'Export PDF / Excel',
+            onPressed: _bukaEkspor,
           ),
         ],
       ),
@@ -503,12 +505,12 @@ class _ChipStatus extends StatelessWidget {
   }
 }
 
-/// Lembar pilihan export Excel: jenis laporan + periode, lalu ekspor.
+/// Lembar pilihan export: jenis laporan + periode + format (PDF/Excel).
 ///
-/// Berkas .xlsx disimpan ke direktori dokumen aplikasi; lokasi berkas
+/// Berkas disimpan ke `Documents/WarkopDoaAmbu/`; lokasi berkas
 /// ditampilkan lewat snackbar setelah export selesai.
-class _LembarEksporExcel extends StatefulWidget {
-  const _LembarEksporExcel({
+class _LembarEkspor extends StatefulWidget {
+  const _LembarEkspor({
     required this.dibuatOleh,
     required this.induk,
   });
@@ -517,14 +519,24 @@ class _LembarEksporExcel extends StatefulWidget {
   final BuildContext induk;
 
   @override
-  State<_LembarEksporExcel> createState() => _LembarEksporExcelState();
+  State<_LembarEkspor> createState() => _LembarEksporState();
 }
 
 enum _JenisLaporan { rekap, terlaris }
 
-class _LembarEksporExcelState extends State<_LembarEksporExcel> {
+enum _FormatEkspor { pdf, excel }
+
+extension _FormatEksporX on _FormatEkspor {
+  String get label => switch (this) {
+        _FormatEkspor.pdf => 'PDF',
+        _FormatEkspor.excel => 'Excel',
+      };
+}
+
+class _LembarEksporState extends State<_LembarEkspor> {
   _JenisLaporan _jenis = _JenisLaporan.rekap;
   PeriodeLaporan _periode = PeriodeLaporan.mingguan;
+  _FormatEkspor _format = _FormatEkspor.pdf;
   bool _mengekspor = false;
 
   Future<void> _ekspor() async {
@@ -533,26 +545,51 @@ class _LembarEksporExcelState extends State<_LembarEksporExcel> {
     // Tangkap messenger sebelum celah async agar aman dipakai setelah await.
     final messengerInduk = ScaffoldMessenger.of(widget.induk);
     try {
+      // Minta izin penyimpanan dulu (Android).
+      final boleh = await DirektoriEkspor.mintaIzin();
+      if (!boleh && mounted) {
+        setState(() => _mengekspor = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Izin penyimpanan ditolak. Berkas disimpan ke folder aplikasi.'),
+          ),
+        );
+      }
+
       final String path;
+      final String labelFormat = _format.label;
       switch (_jenis) {
         case _JenisLaporan.rekap:
-          path = await PengeksporLaporan.eksporRekapPenjualan(
-            periode: _periode,
-            dibuatOleh: widget.dibuatOleh,
-          );
+          path = _format == _FormatEkspor.pdf
+              ? await PengeksporPdf.eksporRekapPenjualan(
+                  periode: _periode,
+                  dibuatOleh: widget.dibuatOleh,
+                )
+              : await PengeksporLaporan.eksporRekapPenjualan(
+                  periode: _periode,
+                  dibuatOleh: widget.dibuatOleh,
+                );
         case _JenisLaporan.terlaris:
-          path = await PengeksporLaporan.eksporMenuTerlaris(
-            periode: _periode,
-            dibuatOleh: widget.dibuatOleh,
-          );
+          path = _format == _FormatEkspor.pdf
+              ? await PengeksporPdf.eksporMenuTerlaris(
+                  periode: _periode,
+                  dibuatOleh: widget.dibuatOleh,
+                )
+              : await PengeksporLaporan.eksporMenuTerlaris(
+                  periode: _periode,
+                  dibuatOleh: widget.dibuatOleh,
+                );
       }
       if (!mounted) return;
       Navigator.of(context).pop();
       HapticFeedback.mediumImpact();
       messengerInduk.showSnackBar(
         SnackBar(
-          content: Text('Excel tersimpan di:\n$path'),
-          duration: const Duration(seconds: 5),
+          content: Text(
+            '$labelFormat tersimpan di:\n${DirektoriEkspor.labelLokasi(path)}',
+          ),
+          duration: const Duration(seconds: 6),
         ),
       );
     } catch (e) {
@@ -589,7 +626,7 @@ class _LembarEksporExcelState extends State<_LembarEksporExcel> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Export Laporan ke Excel',
+              'Export Laporan',
               textAlign: TextAlign.center,
               style: Theme.of(context)
                   .textTheme
@@ -649,15 +686,43 @@ class _LembarEksporExcelState extends State<_LembarEksporExcel> {
               ],
             ),
             const SizedBox(height: 20),
+            Text(
+              'Format Berkas',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall
+                  ?.copyWith(color: aksen, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<_FormatEkspor>(
+              segments: const [
+                ButtonSegment(
+                  value: _FormatEkspor.pdf,
+                  label: Text('PDF'),
+                  icon: Icon(Icons.picture_as_pdf_outlined),
+                ),
+                ButtonSegment(
+                  value: _FormatEkspor.excel,
+                  label: Text('Excel'),
+                  icon: Icon(Icons.table_chart_outlined),
+                ),
+              ],
+              selected: {_format},
+              onSelectionChanged: (pilihan) =>
+                  setState(() => _format = pilihan.first),
+            ),
+            const SizedBox(height: 20),
             TombolKaca(
-              label: 'Export ke Excel',
+              label: 'Export ke ${_format.label}',
               ikon: Icons.download_outlined,
               memuat: _mengekspor,
               saatDitekan: _ekspor,
             ),
             const SizedBox(height: 8),
             Text(
-              'Total & rata-rata memakai rumus Excel asli (=SUM, =AVERAGE).',
+              _format == _FormatEkspor.excel
+                  ? 'Total & rata-rata memakai rumus Excel asli (=SUM, =AVERAGE).'
+                  : 'PDF rapi siap cetak/arsip, tersimpan di Documents.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall,
             ),

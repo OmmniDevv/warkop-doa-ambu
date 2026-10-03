@@ -226,6 +226,8 @@ class _IsiDasbor extends ConsumerWidget {
                   const SizedBox(height: 20),
                   const _JudulBagian('Aksi Cepat'),
                   const _AksiCepat(),
+                  const SizedBox(height: 24),
+                  const _TombolKeluarDasbor(),
                 ],
               ),
             ),
@@ -236,8 +238,61 @@ class _IsiDasbor extends ConsumerWidget {
   }
 }
 
-/// Kepala: sapaan waktu + nama warkop + tanggal + toggle tema.
-class _KepalaDasbor extends StatelessWidget {
+/// Keluar dari akun owner: dialog konfirmasi → hapus sesi → layar awal.
+Future<void> _keluarDariDasbor(BuildContext context, WidgetRef ref) async {
+  final yakin = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Yakin mau keluar?'),
+      content:
+          const Text('Kamu akan keluar dari akun owner di perangkat ini.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Batal'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('Keluar'),
+        ),
+      ],
+    ),
+  );
+  if (yakin != true || !context.mounted) return;
+  await ref.read(penyediaServiceAuthOwner).keluar();
+  segarkanProfil(ref);
+  if (context.mounted) context.go(Rute.selamatDatang);
+}
+
+/// Tombol keluar di bagian bawah dasbor — merah agar gampang ditemukan.
+class _TombolKeluarDasbor extends ConsumerWidget {
+  const _TombolKeluarDasbor();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return OutlinedButton.icon(
+      onPressed: () {
+        HapticFeedback.lightImpact();
+        _keluarDariDasbor(context, ref);
+      },
+      icon: const Icon(Icons.logout_outlined),
+      label: const Text('Keluar dari Akun Owner'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: WarnaWarkop.merahMenyala,
+        side: BorderSide(
+          color: WarnaWarkop.merahMenyala.withValues(alpha: 0.5),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+    );
+  }
+}
+
+/// Kepala: sapaan waktu + nama warkop + tanggal + toggle tema + keluar.
+class _KepalaDasbor extends ConsumerWidget {
   const _KepalaDasbor({required this.namaWarkop});
 
   final String namaWarkop;
@@ -251,7 +306,7 @@ class _KepalaDasbor extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final gelap = Theme.of(context).brightness == Brightness.dark;
     final teksRedup = gelap
         ? WarnaWarkop.teksSekunderGelap
@@ -294,6 +349,38 @@ class _KepalaDasbor extends StatelessWidget {
           ),
         ),
         const TombolTema(),
+        const SizedBox(width: 8),
+        Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _keluarDariDasbor(context, ref);
+            },
+            child: Tooltip(
+              message: 'Keluar dari akun owner',
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color:
+                      WarnaWarkop.merahMenyala.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: WarnaWarkop.merahMenyala
+                        .withValues(alpha: 0.4),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.logout_outlined,
+                  color: WarnaWarkop.merahMenyala,
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
