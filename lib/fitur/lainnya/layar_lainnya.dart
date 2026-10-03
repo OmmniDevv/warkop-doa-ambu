@@ -64,8 +64,34 @@ class LayarLainnya extends ConsumerWidget {
     _UbinLainnya(
       label: 'Kategori',
       ikon: Icons.category_outlined,
-      path: Rute.katalog,
+      path: Rute.kategori,
       warna: WarnaWarkop.emas,
+    ),
+    _UbinLainnya(
+      label: 'Menu',
+      ikon: Icons.restaurant_menu_outlined,
+      path: Rute.menu,
+      warna: WarnaWarkop.aksenTerang,
+    ),
+    // Resep belum punya layar mandiri — dikelola per menu lewat
+    // BagianResep di form menu, jadi ubin ini membuka layar Menu.
+    _UbinLainnya(
+      label: 'Resep',
+      ikon: Icons.soup_kitchen_outlined,
+      path: Rute.menu,
+      warna: WarnaWarkop.kuningAntre,
+    ),
+    _UbinLainnya(
+      label: 'Bahan',
+      ikon: Icons.inventory_outlined,
+      path: Rute.bahan,
+      warna: WarnaWarkop.hijauAman,
+    ),
+    _UbinLainnya(
+      label: 'Stok Opname',
+      ikon: Icons.fact_check_outlined,
+      path: Rute.stokOpname,
+      warna: WarnaWarkop.merahMenyala,
     ),
     _UbinLainnya(
       label: 'Kelola Kasir',

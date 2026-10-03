@@ -9,15 +9,24 @@ import '../../app/tema/token_warna.dart';
 import '../../bersama/widget/kartu_kaca.dart';
 import '../../bersama/widget/tombol_tema.dart';
 import '../../data/model/akun.dart';
+import '../stok_kombo/mesin_sinkron.dart';
 
 /// Layar pemilihan kasir — gerbang masuk sebelum PIN.
 ///
 /// Menampilkan daftar akun dengan peran 'kasir' yang aktif sebagai kartu
 /// daftar (avatar inisial + nama). Tap kartu → lanjut ke PIN kasir.
+/// Saat dibuka, coba unduh akun terbaru dari server dulu (agar akun yang
+/// dibuat owner tetap muncul setelah reinstall).
 class LayarPilihKasir extends ConsumerWidget {
   const LayarPilihKasir({super.key});
 
   Future<List<Akun>> _muatKasir(WidgetRef ref) async {
+    // Coba sinkron (termasuk unduh akun) dulu; gagal = lanjut offline.
+    try {
+      await MesinSinkron().sinkronkan();
+    } catch (_) {
+      // Abaikan — pakai data lokal.
+    }
     final semua = await ref.read(penyediaDatabaseLokal).daftarAkun(
           hanyaAktif: true,
         );

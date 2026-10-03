@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/penyedia.dart';
+import '../../app/router.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/widget/kartu_kaca.dart';
 import '../../bersama/widget/tombol_tema.dart';
@@ -106,7 +107,18 @@ class _LayarPinKasirState extends ConsumerState<LayarPinKasir> {
     final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('PIN KASIR'), actions: const [TombolTema()]),
+      appBar: AppBar(
+        title: const Text('PIN KASIR'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Kembali ke pilih kasir',
+          onPressed: () {
+            HapticFeedback.lightImpact();
+            context.go(Rute.kasir);
+          },
+        ),
+        actions: const [TombolTema()],
+      ),
       body: SafeArea(
         child: FutureBuilder<Akun?>(
           future: ref.read(penyediaDatabaseLokal).ambilAkun(widget.idAkun),

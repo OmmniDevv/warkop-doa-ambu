@@ -1,10 +1,10 @@
 import 'dart:io';
 
 import 'package:excel/excel.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/pesanan.dart';
+import 'direktori_ekspor.dart';
 import 'util_tanggal.dart';
 
 /// Periode yang didukung laporan Excel.
@@ -163,20 +163,15 @@ class PengeksporLaporan {
     return 6; // baris header kolom
   }
 
-  static String _namaBerkas(String jenis) {
-    final s = DateTime.now();
-    final tgl =
-        '${s.year}${s.month.toString().padLeft(2, '0')}${s.day.toString().padLeft(2, '0')}'
-        '-${s.hour.toString().padLeft(2, '0')}${s.minute.toString().padLeft(2, '0')}';
-    return 'laporan-$jenis-$tgl.xlsx';
-  }
+  static String _namaBerkas(String jenis) =>
+      DirektoriEkspor.namaBerkas(jenis, 'xlsx');
 
   static Future<String> _simpan(Excel excel, String namaBerkas) async {
     final bytes = excel.encode();
     if (bytes == null) {
       throw StateError('Gagal mengenkode berkas Excel.');
     }
-    final dir = await getApplicationDocumentsDirectory();
+    final dir = await DirektoriEkspor.direktori();
     final berkas = File('${dir.path}/$namaBerkas');
     await berkas.writeAsBytes(bytes, flush: true);
     return berkas.path;

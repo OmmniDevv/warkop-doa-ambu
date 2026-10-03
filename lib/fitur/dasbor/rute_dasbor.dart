@@ -2,8 +2,9 @@ import 'package:go_router/go_router.dart';
 
 import 'layar_akun_kasir.dart';
 import 'layar_audit.dart';
-import 'layar_katalog.dart';
+import 'layar_kategori.dart';
 import 'layar_laporan.dart';
+import 'layar_menu.dart';
 
 /// Kumpulan rute modul dasbor owner (fase 8).
 ///
@@ -15,8 +16,12 @@ import 'layar_laporan.dart';
 /// file ini TIDAK menyentuh `lib/app/router.dart`.
 final List<GoRoute> ruteDasbor = <GoRoute>[
   GoRoute(
-    path: '/katalog',
-    builder: (context, state) => const LayarKatalog(),
+    path: '/kategori',
+    builder: (context, state) => const LayarKategori(),
+  ),
+  GoRoute(
+    path: '/menu',
+    builder: (context, state) => const LayarMenu(),
   ),
   GoRoute(
     path: '/laporan',
