@@ -71,9 +71,11 @@ jobs:
             echo "Secrets kosong — lanjut mode offline tanpa validasi."
             exit 0
           fi
+          # Uji key ke endpoint tabel nyata (root /rest/v1/ butuh service_role,
+          # jadi tidak bisa dipakai untuk validasi anon key).
           KODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 \
             -H "apikey: $SUPABASE_ANON_KEY" \
-            "$SUPABASE_URL/rest/v1/")
+            "$SUPABASE_URL/rest/v1/pemilik?select=id&limit=1")
           echo "Supabase menjawab HTTP $KODE"
           if [ "$KODE" = "401" ]; then
             echo "::error::SUPABASE_ANON_KEY salah/kedaluwarsa (HTTP 401). Perbaiki secret di Settings → Secrets → Actions, lalu build ulang."
