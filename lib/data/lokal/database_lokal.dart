@@ -2,6 +2,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 import '../model/akun.dart';
+import '../model/bahan.dart';
 import '../model/kas_keluar.dart';
 import '../model/kasbon.dart';
 import '../model/kategori_menu.dart';
@@ -12,8 +13,11 @@ import '../model/paket_kombo.dart';
 import '../model/paket_kombo_rincian.dart';
 import '../model/pemilik.dart';
 import '../model/pesanan.dart';
+import '../model/pesanan_bayar.dart';
 import '../model/pesanan_rincian.dart';
+import '../model/resep.dart';
 import '../model/shift_kasir.dart';
+import '../model/stok_opname.dart';
 
 /// Helper SQLite lokal — sumber kebenaran saat offline.
 ///
@@ -26,7 +30,7 @@ class DatabaseLokal {
   static final DatabaseLokal instance = DatabaseLokal._();
 
   static const _namaDb = 'warkop_doa_ambu.db';
-  static const _versi = 2;
+  static const _versi = 3;
 
   Database? _db;
 
@@ -76,6 +80,88 @@ class DatabaseLokal {
   ) async {
     if (oldVersion < 2) {
       await _buatSkemaOperasional(db);
+    }
+    if (oldVersion < 3) {
+      await _upgradeKe3(db);
+    }
+  }
+
+  /// Migrasi v3: tabel bahan/resep/bayar/opname + kolom diskon.
+  Future<void> _upgradeKe3(Database db) async {
+    // Tabel baru (IF NOT EXISTS aman untuk DB yang sudah punya dari _buatSkema).
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS bahan (
+        id TEXT PRIMARY KEY,
+        nama TEXT NOT NULL,
+        satuan TEXT NOT NULL DEFAULT 'pcs',
+        stok REAL NOT NULL DEFAULT 0,
+        stok_minimum REAL NOT NULL DEFAULT 0,
+        harga_beli INTEGER NOT NULL DEFAULT 0,
+        status_sinkron TEXT NOT NULL DEFAULT 'tertunda',
+        diperbarui_pada TEXT NOT NULL,
+        apakah_dihapus INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS resep (
+        id TEXT PRIMARY KEY,
+        id_menu TEXT NOT NULL,
+        id_bahan TEXT NOT NULL,
+        takaran REAL NOT NULL DEFAULT 1,
+        status_sinkron TEXT NOT NULL DEFAULT 'tertunda',
+        diperbarui_pada TEXT NOT NULL,
+        UNIQUE (id_menu, id_bahan)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS pesanan_bayar (
+        id TEXT PRIMARY KEY,
+        id_pesanan TEXT NOT NULL,
+        metode TEXT NOT NULL,
+        nominal INTEGER NOT NULL DEFAULT 0,
+        status_sinkron TEXT NOT NULL DEFAULT 'tertunda',
+        dibuat_pada TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS stok_opname (
+        id TEXT PRIMARY KEY,
+        tipe_item TEXT NOT NULL,
+        id_item TEXT NOT NULL,
+        nama_snapshot TEXT NOT NULL,
+        stok_sistem REAL NOT NULL DEFAULT 0,
+        stok_fisik REAL NOT NULL DEFAULT 0,
+        selisih REAL NOT NULL DEFAULT 0,
+        catatan TEXT,
+        dibuat_oleh TEXT NOT NULL,
+        status_sinkron TEXT NOT NULL DEFAULT 'tertunda',
+        dibuat_pada TEXT NOT NULL
+      )
+    ''');
+    // Kolom diskon (tambah bila belum ada).
+    await _tambahKolomJikaBelumAda(
+        db, 'pesanan', 'diskon_nota_nominal', 'INTEGER NOT NULL DEFAULT 0');
+    await _tambahKolomJikaBelumAda(
+        db, 'pesanan', 'diskon_nota_persen', 'REAL NOT NULL DEFAULT 0');
+    await _tambahKolomJikaBelumAda(db, 'pesanan', 'alasan_diskon', 'TEXT');
+    await _tambahKolomJikaBelumAda(
+        db, 'pesanan_rincian', 'diskon_nominal', 'INTEGER NOT NULL DEFAULT 0');
+    await _tambahKolomJikaBelumAda(
+        db, 'pesanan_rincian', 'diskon_persen', 'REAL NOT NULL DEFAULT 0');
+  }
+
+  /// Tambah kolom hanya bila belum ada (cek via PRAGMA table_info).
+  Future<void> _tambahKolomJikaBelumAda(
+    Database db,
+    String tabel,
+    String kolom,
+    String definisi,
+  ) async {
+    final info =
+        await db.rawQuery('PRAGMA table_info($tabel)');
+    final ada = info.any((baris) => baris['name'] == kolom);
+    if (!ada) {
+      await db.execute('ALTER TABLE $tabel ADD COLUMN $kolom $definisi');
     }
   }
 
@@ -245,6 +331,56 @@ class DatabaseLokal {
         id_referensi TEXT,
         detail TEXT,
         alasan TEXT,
+        dibuat_pada TEXT NOT NULL
+      )
+    ''');
+    // ── Migrasi 002: bahan, resep, diskon, bayar gabungan, stok opname ──
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS bahan (
+        id TEXT PRIMARY KEY,
+        nama TEXT NOT NULL,
+        satuan TEXT NOT NULL DEFAULT 'pcs',
+        stok REAL NOT NULL DEFAULT 0,
+        stok_minimum REAL NOT NULL DEFAULT 0,
+        harga_beli INTEGER NOT NULL DEFAULT 0,
+        status_sinkron TEXT NOT NULL DEFAULT 'tertunda',
+        diperbarui_pada TEXT NOT NULL,
+        apakah_dihapus INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS resep (
+        id TEXT PRIMARY KEY,
+        id_menu TEXT NOT NULL,
+        id_bahan TEXT NOT NULL,
+        takaran REAL NOT NULL DEFAULT 1,
+        status_sinkron TEXT NOT NULL DEFAULT 'tertunda',
+        diperbarui_pada TEXT NOT NULL,
+        UNIQUE (id_menu, id_bahan)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS pesanan_bayar (
+        id TEXT PRIMARY KEY,
+        id_pesanan TEXT NOT NULL,
+        metode TEXT NOT NULL,
+        nominal INTEGER NOT NULL DEFAULT 0,
+        status_sinkron TEXT NOT NULL DEFAULT 'tertunda',
+        dibuat_pada TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS stok_opname (
+        id TEXT PRIMARY KEY,
+        tipe_item TEXT NOT NULL,
+        id_item TEXT NOT NULL,
+        nama_snapshot TEXT NOT NULL,
+        stok_sistem REAL NOT NULL DEFAULT 0,
+        stok_fisik REAL NOT NULL DEFAULT 0,
+        selisih REAL NOT NULL DEFAULT 0,
+        catatan TEXT,
+        dibuat_oleh TEXT NOT NULL,
+        status_sinkron TEXT NOT NULL DEFAULT 'tertunda',
         dibuat_pada TEXT NOT NULL
       )
     ''');
@@ -561,6 +697,100 @@ class DatabaseLokal {
     );
   }
 
+  // ── Bahan (Fase stok redesign) ───────────────────────────────────
+
+  /// Seluruh bahan aktif, urut nama.
+  Future<List<Bahan>> daftarBahan() async {
+    final db = await this.db;
+    final baris = await db.query(
+      'bahan',
+      where: 'apakah_dihapus = 0',
+      orderBy: 'nama COLLATE NOCASE ASC',
+    );
+    return [for (final b in baris) Bahan.dariBaris(b)];
+  }
+
+  /// Bahan yang stoknya sudah di batas minimum atau di bawahnya.
+  Future<List<Bahan>> daftarBahanMenipis() async {
+    final db = await this.db;
+    final baris = await db.query(
+      'bahan',
+      where: 'apakah_dihapus = 0 AND stok <= stok_minimum',
+      orderBy: 'nama COLLATE NOCASE ASC',
+    );
+    return [for (final b in baris) Bahan.dariBaris(b)];
+  }
+
+  /// Simpan bahan baru.
+  Future<void> simpanBahan(Bahan bahan) => _simpan('bahan', bahan.keBaris());
+
+  /// Perbarui bahan (tandai 'tertunda' agar ikut antrean sinkron).
+  Future<void> perbaruiBahan(Bahan bahan) =>
+      _perbarui('bahan', bahan.keBaris(), bahan.id);
+
+  /// Hapus lunak bahan.
+  Future<void> hapusBahanLunak(String id) => _hapusLunak('bahan', id);
+
+  // ── Resep (menu ↔ bahan) ─────────────────────────────────────────
+
+  /// Resep satu menu beserta nama & satuan bahannya.
+  Future<List<ResepLengkap>> daftarResepMenu(String idMenu) async {
+    final db = await this.db;
+    final baris = await db.rawQuery(
+      '''
+      SELECT r.*, b.nama AS nama_bahan, b.satuan AS satuan_bahan
+      FROM resep r
+      JOIN bahan b ON b.id = r.id_bahan
+      WHERE r.id_menu = ? AND b.apakah_dihapus = 0
+      ORDER BY b.nama COLLATE NOCASE ASC
+      ''',
+      [idMenu],
+    );
+    return [
+      for (final b in baris)
+        ResepLengkap(
+          resep: Resep.dariBaris(b),
+          namaBahan: b['nama_bahan'] as String,
+          satuan: b['satuan_bahan'] as String? ?? 'pcs',
+        ),
+    ];
+  }
+
+  /// Simpan satu baris resep (id_menu + id_bahan unik).
+  Future<void> simpanResep(Resep resep) => _simpan('resep', resep.keBaris());
+
+  /// Hapus keras satu baris resep (relasi, tanpa soft-delete).
+  Future<void> hapusResep(String id) async {
+    final db = await this.db;
+    await db.delete('resep', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ── Stok opname ──────────────────────────────────────────────────
+
+  /// Catat satu baris hasil opname.
+  ///
+  /// Tabel `stok_opname` tidak punya kolom `diperbarui_pada`, jadi tidak
+  /// memakai [_simpan]; insert langsung dengan status 'tertunda'.
+  Future<void> catatOpname(StokOpname opname) async {
+    final db = await this.db;
+    await db.insert(
+      'stok_opname',
+      opname.keBaris()..['status_sinkron'] = 'tertunda',
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Riwayat opname terbaru → terlama.
+  Future<List<StokOpname>> daftarOpname({int batas = 300}) async {
+    final db = await this.db;
+    final baris = await db.query(
+      'stok_opname',
+      orderBy: 'dibuat_pada DESC',
+      limit: batas,
+    );
+    return [for (final b in baris) StokOpname.dariBaris(b)];
+  }
+
   // ── Paket kombo ──────────────────────────────────────────────────
 
   /// Simpan paket kombo baru.
@@ -695,6 +925,81 @@ class DatabaseLokal {
   Future<void> hapusRincian(String id) async {
     final db = await this.db;
     await db.delete('pesanan_rincian', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ── Pembayaran gabungan ──────────────────────────────────────────
+
+  /// Simpan satu baris pembayaran (komponen bayar gabungan).
+  Future<void> simpanPembayaran(PesananBayar bayar) async {
+    final db = await this.db;
+    await db.insert('pesanan_bayar', bayar.keBaris());
+  }
+
+  /// Daftar seluruh baris pembayaran milik [idPesanan].
+  Future<List<PesananBayar>> daftarPembayaranPesanan(String idPesanan) async {
+    final db = await this.db;
+    final baris = await db.query(
+      'pesanan_bayar',
+      where: 'id_pesanan = ?',
+      whereArgs: [idPesanan],
+      orderBy: 'dibuat_pada ASC',
+    );
+    return baris.map(PesananBayar.dariBaris).toList();
+  }
+
+  // ── Bahan & resep ────────────────────────────────────────────────
+
+  /// Ambil satu bahan baku berdasarkan [id].
+  Future<Bahan?> ambilBahan(String id) async {
+    final db = await this.db;
+    final baris = await db.query(
+      'bahan',
+      where: 'id = ? AND apakah_dihapus = 0',
+      whereArgs: [id],
+    );
+    if (baris.isEmpty) return null;
+    return Bahan.dariBaris(baris.first);
+  }
+
+  /// Daftar resep (takaran bahan) untuk satu [idMenu].
+  Future<List<Resep>> daftarResepMenu(String idMenu) async {
+    final db = await this.db;
+    final baris = await db.query(
+      'resep',
+      where: 'id_menu = ?',
+      whereArgs: [idMenu],
+    );
+    return baris.map(Resep.dariBaris).toList();
+  }
+
+  /// Kurangi stok bahan sesuai resep [idMenu] × [jumlahMenu] terjual.
+  ///
+  /// Mengembalikan bahan-bahan yang stoknya kini menipis
+  /// (stok <= stok_minimum) untuk ditampilkan sebagai peringatan.
+  Future<List<Bahan>> kurangiStokBahanResep(
+    String idMenu,
+    int jumlahMenu,
+  ) async {
+    final resep = await daftarResepMenu(idMenu);
+    if (resep.isEmpty) return const [];
+    final db = await this.db;
+    final sekarang = _sekarangUtc();
+    final menipis = <Bahan>[];
+    for (final baris in resep) {
+      await db.rawUpdate(
+        '''
+        UPDATE bahan
+        SET stok = stok - ?,
+            status_sinkron = 'tertunda',
+            diperbarui_pada = ?
+        WHERE id = ?
+        ''',
+        [baris.takaran * jumlahMenu, sekarang, baris.idBahan],
+      );
+      final bahan = await ambilBahan(baris.idBahan);
+      if (bahan != null && bahan.menipis) menipis.add(bahan);
+    }
+    return menipis;
   }
 
   // ── Open bill ────────────────────────────────────────────────────
@@ -858,3 +1163,4 @@ class DatabaseLokal {
     );
   }
 }
+
