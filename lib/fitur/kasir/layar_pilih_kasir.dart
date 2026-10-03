@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/penyedia.dart';
+import '../../app/router.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/widget/kartu_kaca.dart';
 import '../../bersama/widget/tombol_tema.dart';
@@ -44,7 +45,9 @@ class LayarPilihKasir extends ConsumerWidget {
                 ikon: Icons.cloud_off_outlined,
                 judul: 'Gagal memuat daftar kasir.',
                 tombol: const Text('Kembali'),
-                saatTombol: () => context.pop(),
+                // Layar ini dibuka via context.go (mengganti rute), jadi
+                // tidak ada tumpukan untuk di-pop — kembali eksplisit.
+                saatTombol: () => context.go(Rute.selamatDatang),
               );
             }
 
@@ -57,7 +60,7 @@ class LayarPilihKasir extends ConsumerWidget {
                 tombol: const Text('Kembali'),
                 saatTombol: () {
                   HapticFeedback.lightImpact();
-                  context.pop();
+                  context.go(Rute.selamatDatang);
                 },
               );
             }

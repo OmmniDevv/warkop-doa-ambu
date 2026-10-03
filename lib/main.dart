@@ -24,8 +24,10 @@ Future<void> main() async {
   var supabaseSiap = false;
   try {
     await dotenv.load(fileName: '.env');
-    final url = dotenv.env['SUPABASE_URL'] ?? '';
-    final anonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+    // Trim defensif: secret yang ditempel via web kadang membawa spasi/
+    // newline di ujung yang membuat API key ditolak server.
+    final url = (dotenv.env['SUPABASE_URL'] ?? '').trim();
+    final anonKey = (dotenv.env['SUPABASE_ANON_KEY'] ?? '').trim();
     if (url.isNotEmpty &&
         anonKey.isNotEmpty &&
         !url.contains('contoh') &&

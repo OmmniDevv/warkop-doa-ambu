@@ -48,19 +48,19 @@ class _LayarMasukOwnerState extends ConsumerState<LayarMasukOwner> {
     }
 
     setState(() => _memuat = true);
-    final ok = await ref.read(penyediaServiceAuthOwner).masuk(
+    final hasil = await ref.read(penyediaServiceAuthOwner).masuk(
           email: _emailCtrl.text,
           kataSandi: _sandiCtrl.text,
         );
     if (!mounted) return;
     setState(() => _memuat = false);
 
-    if (!ok) {
+    if (!hasil.ok) {
       _goyang.goyang();
       HapticFeedback.heavyImpact();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Gagal masuk. Periksa email & kata sandi.'),
+        SnackBar(
+          content: Text(hasil.galat ?? 'Gagal masuk. Periksa email & kata sandi.'),
         ),
       );
       return;

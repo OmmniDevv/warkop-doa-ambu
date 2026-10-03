@@ -41,8 +41,10 @@ class ServiceAuthOwner {
 
   /// Masuk dengan email + kata sandi, lalu unduh profil ke SQLite lokal.
   ///
-  /// Mengembalikan `true` jika profil berhasil dimuat ke perangkat.
-  Future<bool> masuk({
+  /// Mengembalikan record `(ok, galat)`: `ok` true jika profil berhasil
+  /// dimuat ke perangkat; `galat` berisi pesan yang bisa ditampilkan ke
+  /// pengguna saat gagal (tidak lagi menelan seluruh error).
+  Future<({bool ok, String? galat})> masuk({
     required String email,
     required String kataSandi,
   }) async {
@@ -52,7 +54,9 @@ class ServiceAuthOwner {
         password: kataSandi,
       );
       final pengguna = respons.user;
-      if (pengguna == null) return false;
+      if (pengguna == null) {
+        return (ok: false, galat: 'Sesi tidak terbentuk. Coba lagi.');
+      }
 
       final baris = await _klien
           .from('pemilik')
@@ -86,10 +90,34 @@ class ServiceAuthOwner {
           ),
         );
       }
-      return true;
-    } catch (_) {
-      return false;
+      return (ok: true, galat: null);
+    } catch (e) {
+      return (ok: false, galat: _pesanGalatMasuk(e));
     }
+  }
+
+  /// Ubah error teknis saat masuk menjadi pesan Bahasa Indonesia yang
+  /// bisa dipahami — tapi tetap tampilkan inti pesannya agar mudah
+  /// didiagnosis bila terjadi masalah konfigurasi/jaringan.
+  String _pesanGalatMasuk(Object e) {
+    final teks = e.toString();
+    final rendah = teks.toLowerCase();
+    if (rendah.contains('invalid login credentials') ||
+        rendah.contains('invalid_credentials')) {
+      return 'Email atau kata sandi salah. Periksa lagi.';
+    }
+    if (rendah.contains('failed host lookup') ||
+        rendah.contains('socketexception') ||
+        rendah.contains('connection refused') ||
+        rendah.contains('network is unreachable') ||
+        rendah.contains('connection timed out')) {
+      return 'Tidak dapat menghubungi server. Periksa koneksi internet HP.';
+    }
+    if (rendah.contains('invalid api key') || rendah.contains('api key')) {
+      return 'Konfigurasi server aplikasi bermasalah (API key tidak valid).';
+    }
+    final ringkas = teks.length > 180 ? '${teks.substring(0, 180)}…' : teks;
+    return 'Gagal masuk: $ringkas';
   }
 
   Future<void> _simpanProfil({
