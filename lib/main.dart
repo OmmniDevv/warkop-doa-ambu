@@ -14,6 +14,8 @@ import 'fitur/stok_kombo/penyedia_sinkron.dart';
 /// - Mengunci orientasi portrait.
 /// - Memuat `.env` (toleran jika belum ada → mode offline).
 /// - Inisialisasi Supabase hanya jika kredensial terisi (bukan placeholder).
+/// - Nilai .env di-trim defensif karena secret tempelan web kadang membawa
+///   spasi/newline yang membuat API key/URL ditolak.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
