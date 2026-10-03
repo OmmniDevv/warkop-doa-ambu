@@ -32,7 +32,7 @@ class Pesanan {
   final String idAkun;
   final String? idShift;
   final String? idOpenBill;
-  final String metodeBayar; // 'tunai' | 'non_tunai'
+  final String metodeBayar; // 'tunai' | 'non_tunai' | 'gabungan'
   final String status; // 'baru' | 'lunas' | 'void'
   final int total;
   final int bayar;
@@ -143,4 +143,3 @@ class Pesanan {
     );
   }
 }
-
