@@ -3,12 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:warkop_doa_ambu/fitur/void_kasbon/dialog_void.dart';
 
+import '../../app/penyedia.dart';
 import '../../app/tema/token_tipografi.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/tombol_kaca.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/pesanan.dart';
+import 'pengekspor_laporan.dart';
 import 'util_tanggal.dart';
 
 /// Seluruh pesanan untuk agregasi laporan (7 hari terakhir + harian).
@@ -97,12 +100,41 @@ class _LayarLaporanState extends ConsumerState<LayarLaporan> {
     }
   }
 
+  /// Buka lembar pilihan export Excel (jenis laporan + periode).
+  Future<void> _bukaEksporExcel() async {
+    HapticFeedback.lightImpact();
+    final profil = await ref.read(penyediaProfilPemilik.future);
+    if (!mounted) return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+        ),
+        child: _LembarEksporExcel(
+          dibuatOleh: profil?.namaPemilik ?? 'Owner',
+          induk: context,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pesananAsync = ref.watch(penyediaSemuaPesanan);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('LAPORAN')),
+      appBar: AppBar(
+        title: const Text('LAPORAN'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download_outlined),
+            tooltip: 'Export ke Excel',
+            onPressed: _bukaEksporExcel,
+          ),
+        ],
+      ),
       body: SafeArea(
         child: pesananAsync.when(
           data: (semua) {
@@ -330,7 +362,7 @@ class _KartuHarian extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           onTap: saatTap,
           child: KartuKaca(
-            pakaiBlur: false,
+            tanpaBlur: true,
             radius: 16,
             padding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -395,7 +427,7 @@ class _BarisPesanan extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: KartuKaca(
-        pakaiBlur: false,
+        tanpaBlur: true,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -466,6 +498,171 @@ class _ChipStatus extends StatelessWidget {
               color: warna,
               fontWeight: FontWeight.w700,
             ),
+      ),
+    );
+  }
+}
+
+/// Lembar pilihan export Excel: jenis laporan + periode, lalu ekspor.
+///
+/// Berkas .xlsx disimpan ke direktori dokumen aplikasi; lokasi berkas
+/// ditampilkan lewat snackbar setelah export selesai.
+class _LembarEksporExcel extends StatefulWidget {
+  const _LembarEksporExcel({
+    required this.dibuatOleh,
+    required this.induk,
+  });
+
+  final String dibuatOleh;
+  final BuildContext induk;
+
+  @override
+  State<_LembarEksporExcel> createState() => _LembarEksporExcelState();
+}
+
+enum _JenisLaporan { rekap, terlaris }
+
+class _LembarEksporExcelState extends State<_LembarEksporExcel> {
+  _JenisLaporan _jenis = _JenisLaporan.rekap;
+  PeriodeLaporan _periode = PeriodeLaporan.mingguan;
+  bool _mengekspor = false;
+
+  Future<void> _ekspor() async {
+    if (_mengekspor) return;
+    setState(() => _mengekspor = true);
+    // Tangkap messenger sebelum celah async agar aman dipakai setelah await.
+    final messengerInduk = ScaffoldMessenger.of(widget.induk);
+    try {
+      final String path;
+      switch (_jenis) {
+        case _JenisLaporan.rekap:
+          path = await PengeksporLaporan.eksporRekapPenjualan(
+            periode: _periode,
+            dibuatOleh: widget.dibuatOleh,
+          );
+        case _JenisLaporan.terlaris:
+          path = await PengeksporLaporan.eksporMenuTerlaris(
+            periode: _periode,
+            dibuatOleh: widget.dibuatOleh,
+          );
+      }
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      HapticFeedback.mediumImpact();
+      messengerInduk.showSnackBar(
+        SnackBar(
+          content: Text('Excel tersimpan di:\n$path'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _mengekspor = false);
+      HapticFeedback.heavyImpact();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mengekspor: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Export Laporan ke Excel',
+              textAlign: TextAlign.center,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Dibuat oleh: ${widget.dibuatOleh}',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Jenis Laporan',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall
+                  ?.copyWith(color: aksen, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<_JenisLaporan>(
+              segments: const [
+                ButtonSegment(
+                  value: _JenisLaporan.rekap,
+                  label: Text('Rekap Penjualan'),
+                  icon: Icon(Icons.table_chart_outlined),
+                ),
+                ButtonSegment(
+                  value: _JenisLaporan.terlaris,
+                  label: Text('Menu Terlaris'),
+                  icon: Icon(Icons.emoji_events_outlined),
+                ),
+              ],
+              selected: {_jenis},
+              onSelectionChanged: (pilihan) =>
+                  setState(() => _jenis = pilihan.first),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Periode',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall
+                  ?.copyWith(color: aksen, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final p in PeriodeLaporan.values)
+                  ChoiceChip(
+                    label: Text(p.label),
+                    selected: _periode == p,
+                    onSelected: (_) => setState(() => _periode = p),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            TombolKaca(
+              label: 'Export ke Excel',
+              ikon: Icons.download_outlined,
+              memuat: _mengekspor,
+              saatDitekan: _ekspor,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Total & rata-rata memakai rumus Excel asli (=SUM, =AVERAGE).',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
       ),
     );
   }
