@@ -139,7 +139,7 @@ class _LayarBukaShiftState extends ConsumerState<LayarBukaShift> {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                 child: KartuKaca(
-                  pakaiBlur: false,
+                  tanpaBlur: true,
                   bayangan: false,
                   child: Column(
                     children: [
