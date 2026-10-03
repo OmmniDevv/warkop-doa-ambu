@@ -268,7 +268,7 @@ class _KartuKasbon extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: KartuKaca(
-        pakaiBlur: false,
+        tanpaBlur: true,
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
