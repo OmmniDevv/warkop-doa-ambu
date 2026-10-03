@@ -170,4 +170,3 @@ class _PelukisCincin extends CustomPainter {
   @override
   bool shouldRepaint(_PelukisCincin old) => old.persen != persen;
 }
-
