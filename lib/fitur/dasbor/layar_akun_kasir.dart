@@ -93,7 +93,7 @@ class _BarisKasir extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: KartuKaca(
-        pakaiBlur: false,
+        tanpaBlur: true,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 12),
