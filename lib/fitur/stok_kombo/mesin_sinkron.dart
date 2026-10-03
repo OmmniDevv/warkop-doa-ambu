@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -10,6 +11,76 @@ class HasilSinkron {
 
   final int berhasil;
   final int gagal;
+}
+
+/// Info unduh akun terakhir — untuk banner "Terakhir sinkron" di UI.
+class InfoUnduhAkun {
+  const InfoUnduhAkun({
+    required this.waktu,
+    required this.jumlah,
+    required this.gagalBeruntun,
+  });
+
+  /// Waktu UTC unduh terakhir yang berhasil.
+  final DateTime waktu;
+
+  /// Jumlah akun yang ditulis pada unduh terakhir.
+  final int jumlah;
+
+  /// Jumlah kegagalan beruntun sejak sukses terakhir (0 = sehat).
+  final int gagalBeruntun;
+}
+
+/// Hasil unduh akun dari server.
+///
+/// Dipakai untuk logging, retry, dan tampilan status di layar Pilih Kasir.
+class HasilUnduhAkun {
+  const HasilUnduhAkun({
+    required this.berhasil,
+    required this.jumlahServer,
+    required this.jumlahDiunduh,
+    required this.jumlahDilewati,
+    this.pesanGalat,
+  });
+
+  /// true jika koneksi ke server berhasil (walau 0 baris diunduh).
+  final bool berhasil;
+
+  /// Jumlah baris akun di server (apakah_dihapus = false).
+  final int jumlahServer;
+
+  /// Jumlah baris yang benar-benar ditulis ke SQLite.
+  final int jumlahDiunduh;
+
+  /// Jumlah baris dilewati (perubahan lokal 'tertunda' / data tidak valid).
+  final int jumlahDilewati;
+
+  /// Pesan galat bila [berhasil] false.
+  final String? pesanGalat;
+}
+
+/// Hasil unduh satu tabel generik (untuk logging).
+class HasilUnduhTabel {
+  const HasilUnduhTabel({
+    required this.tabel,
+    required this.jumlahServer,
+    required this.jumlahDiunduh,
+    required this.jumlahDilewati,
+  });
+
+  final String tabel;
+  final int jumlahServer;
+  final int jumlahDiunduh;
+  final int jumlahDilewati;
+}
+
+/// Konfigurasi unduh per tabel: kolom waktu untuk last-write-wins dan
+/// apakah tabel punya kolom `apakah_dihapus`.
+class _KonfigUnduh {
+  const _KonfigUnduh({required this.kolomWaktu, required this.punyaHapus});
+
+  final String kolomWaktu;
+  final bool punyaHapus;
 }
 
 /// Mesin sinkronisasi: mengunggah baris lokal 'tertunda' ke Supabase
@@ -61,6 +132,38 @@ class MesinSinkron {
   /// yang sudah terunggah).
   static const String _kunciWatermarkAudit = 'wda_audit_sinkron_sampai';
 
+  /// Kunci info unduh akun di SharedPreferences — dipakai layar Pilih Kasir
+  /// untuk menampilkan "Terakhir sinkron: ..." agar user tahu datanya fresh.
+  static const String kunciAkunUnduhTerakhir = 'wda_akun_unduh_terakhir';
+  static const String kunciAkunUnduhJumlah = 'wda_akun_unduh_jumlah';
+  static const String kunciAkunUnduhGagalBeruntun =
+      'wda_akun_unduh_gagal_beruntun';
+
+  /// Tabel yang ikut UNDUH dari server → SQLite (sinkron dua arah).
+  ///
+  /// 'akun' ditangani khusus via [unduhAkun] (validasi lebih keras).
+  /// 'stok_opname' & 'pesanan_bayar' tidak punya `diperbarui_pada` /
+  /// `apakah_dihapus` — hanya ditambah bila id belum ada lokal.
+  static const Map<String, _KonfigUnduh> _tabelUnduh = {
+    'kategori_menu': _KonfigUnduh(kolomWaktu: 'diperbarui_pada', punyaHapus: true),
+    'menu': _KonfigUnduh(kolomWaktu: 'diperbarui_pada', punyaHapus: true),
+    'paket_kombo': _KonfigUnduh(kolomWaktu: 'diperbarui_pada', punyaHapus: true),
+    'paket_kombo_rincian':
+        _KonfigUnduh(kolomWaktu: 'diperbarui_pada', punyaHapus: true),
+    'open_bill': _KonfigUnduh(kolomWaktu: 'diperbarui_pada', punyaHapus: true),
+    'shift_kasir': _KonfigUnduh(kolomWaktu: 'diperbarui_pada', punyaHapus: true),
+    'pesanan': _KonfigUnduh(kolomWaktu: 'diperbarui_pada', punyaHapus: true),
+    'pesanan_rincian':
+        _KonfigUnduh(kolomWaktu: 'diperbarui_pada', punyaHapus: true),
+    'pesanan_bayar': _KonfigUnduh(kolomWaktu: 'dibuat_pada', punyaHapus: false),
+    'bahan': _KonfigUnduh(kolomWaktu: 'diperbarui_pada', punyaHapus: true),
+    'resep': _KonfigUnduh(kolomWaktu: 'diperbarui_pada', punyaHapus: false),
+    'stok_opname': _KonfigUnduh(kolomWaktu: 'dibuat_pada', punyaHapus: false),
+    'kasbon': _KonfigUnduh(kolomWaktu: 'diperbarui_pada', punyaHapus: true),
+    'kas_keluar': _KonfigUnduh(kolomWaktu: 'diperbarui_pada', punyaHapus: true),
+    'pemilik': _KonfigUnduh(kolomWaktu: 'diperbarui_pada', punyaHapus: true),
+  };
+
   /// Unggah semua baris 'tertunda' ke Supabase.
   ///
   /// Sukses per baris → tandai 'tersinkron'; gagal → tandai 'gagal'.
@@ -104,7 +207,23 @@ class MesinSinkron {
 
       // Unduh akun kasir dari server (agar akun yang dibuat owner di
       // perangkat lain / sebelum reinstall tetap muncul).
-      await _unduhAkun(client);
+      // Hasilnya di-log + disimpan; gagal = dicoba lagi putaran berikutnya.
+      final hasilUnduh = await unduhAkun(client);
+      if (!hasilUnduh.berhasil) {
+        debugPrint(
+            '[Sinkron] unduh akun gagal: ${hasilUnduh.pesanGalat}');
+      }
+
+      // Unduh dua arah untuk SEMUA tabel operasional: Supabase dan SQLite
+      // harus SAMA. Last-write-wins via kolom waktu; baris lokal 'tertunda'
+      // tidak pernah ditimpa.
+      for (final entri in _tabelUnduh.entries) {
+        final hasil = await _unduhTabel(client, entri.key, entri.value);
+        if (hasil.jumlahDiunduh > 0) {
+          debugPrint(
+              '[Sinkron] ${hasil.tabel}: +${hasil.jumlahDiunduh} dari server');
+        }
+      }
 
       return HasilSinkron(berhasil: berhasil, gagal: gagal);
     } catch (_) {
@@ -114,11 +233,19 @@ class MesinSinkron {
 
   /// Mengunduh daftar akun dari Supabase ke SQLite lokal.
   ///
-  /// Dipakai agar akun kasir yang dibuat owner tetap muncul setelah
-  /// reinstall / di perangkat lain. Baris lokal berstatus 'tertunda'
-  /// (perubahan belum terunggah) TIDAK ditimpa — perubahan lokal menang.
-  /// Tidak pernah throw.
-  Future<void> _unduhAkun(SupabaseClient client) async {
+  /// PENGAMANAN BERLAPIS (anti akun hilang setelah reinstall):
+  /// 1. Validasi kolom kritikal (id, nama, peran; pin_hash wajib untuk kasir)
+  ///    — baris tidak valid dilewati dan dihitung, bukan ditulis rusak.
+  /// 2. Baris lokal berstatus 'tertunda' (perubahan belum terunggah) TIDAK
+  ///    ditimpa — perubahan lokal menang.
+  /// 3. Hasil (jumlah server / diunduh / dilewati / galat) di-log via
+  ///    debugPrint dan disimpan ke SharedPreferences.
+  /// 4. Gagal = catat gagal-beruntun; putaran sinkron berikutnya OTOMATIS
+  ///    mencoba lagi (tidak diam-diam gagal selamanya).
+  ///
+  /// Mengembalikan [HasilUnduhAkun]. Tidak pernah throw.
+  Future<HasilUnduhAkun> unduhAkun(SupabaseClient client) async {
+    const tag = '[UnduhAkun]';
     try {
       final db = DatabaseLokal.instance;
       final remote = await client
@@ -126,11 +253,24 @@ class MesinSinkron {
           .select()
           .eq('apakah_dihapus', false);
 
+      final daftar = (remote as List).cast<Map<String, dynamic>>();
+      debugPrint('$tag server punya ${daftar.length} akun aktif');
+
       final dbBuka = await db.db;
-      for (final baris in (remote as List)) {
-        final peta = Map<String, Object?>.from(baris as Map);
-        final id = peta['id'] as String?;
-        if (id == null || id.isEmpty) continue;
+      var diunduh = 0;
+      var dilewati = 0;
+
+      for (final baris in daftar) {
+        final peta = Map<String, Object?>.from(baris);
+
+        // Validasi kolom kritikal sebelum ditulis.
+        final barisLokal = petakanBarisAkun(peta);
+        if (barisLokal == null) {
+          dilewati++;
+          debugPrint('$tag LEWATI baris tidak valid: id=${peta['id']}');
+          continue;
+        }
+        final id = barisLokal['id'] as String;
 
         // Jangan timpa perubahan lokal yang belum terunggah.
         final lokal = await dbBuka.query(
@@ -141,30 +281,226 @@ class MesinSinkron {
         );
         if (lokal.isNotEmpty &&
             lokal.first['status_sinkron'] == 'tertunda') {
+          dilewati++;
           continue;
         }
 
-        // Konversi boolean Supabase (true/false) ke SQLite (1/0).
-        final barisLokal = <String, Object?>{
-          'id': id,
-          'nama': peta['nama'],
-          'pin_hash': peta['pin_hash'],
-          'peran': peta['peran'],
-          'aktif': (peta['aktif'] as bool? ?? true) ? 1 : 0,
-          'status_sinkron': 'tersinkron',
-          'diperbarui_pada': peta['diperbarui_pada'] ??
-              peta['diperbaruiPada'] ??
-              DateTime.now().toUtc().toIso8601String(),
-          'apakah_dihapus': (peta['apakah_dihapus'] as bool? ?? false) ? 1 : 0,
-        };
         await dbBuka.insert(
           'akun',
           barisLokal,
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
+        diunduh++;
+      }
+
+      debugPrint(
+          '$tag selesai: server=${daftar.length} diunduh=$diunduh '
+          'dilewati=$dilewati');
+
+      // Peringatan keras: server punya data tapi tidak ada yang masuk.
+      // Ini gejala bug "akun hilang" — jangan dibiarkan diam.
+      if (daftar.isNotEmpty && diunduh == 0 && dilewati == daftar.length) {
+        debugPrint(
+            '$tag PERINGATAN: ${daftar.length} akun di server, '
+            'semuanya dilewati! Cek validasi / status tertunda.');
+      }
+
+      await _catatUnduhAkun(berhasil: true, jumlah: diunduh);
+      return HasilUnduhAkun(
+        berhasil: true,
+        jumlahServer: daftar.length,
+        jumlahDiunduh: diunduh,
+        jumlahDilewati: dilewati,
+      );
+    } catch (e) {
+      debugPrint('$tag GAGAL: $e — dicoba lagi putaran berikutnya');
+      await _catatUnduhAkun(berhasil: false, jumlah: 0);
+      return HasilUnduhAkun(
+        berhasil: false,
+        jumlahServer: 0,
+        jumlahDiunduh: 0,
+        jumlahDilewati: 0,
+        pesanGalat: e.toString(),
+      );
+    }
+  }
+
+  /// Unduh generik satu tabel dari Supabase → SQLite.
+  ///
+  /// Strategi konflik LAST-WRITE-WINS:
+  /// - Baris lokal `status_sinkron = 'tertunda'` → TIDAK ditimpa.
+  /// - Remote lebih baru (kolom waktu) → replace lokal.
+  /// - Lokal lebih baru / sama → lewati.
+  /// - Tabel tanpa kolom waktu update (pesanan_bayar, stok_opname):
+  ///   hanya insert bila id belum ada lokal.
+  ///
+  /// Boolean Supabase (true/false) dikonversi ke SQLite (1/0) memakai
+  /// [_kolomBoolean]. Tidak pernah throw.
+  Future<HasilUnduhTabel> _unduhTabel(
+    SupabaseClient client,
+    String tabel,
+    _KonfigUnduh konfig,
+  ) async {
+    try {
+      final query = client.from(tabel).select();
+      final remote = konfig.punyaHapus
+          ? await query.eq('apakah_dihapus', false)
+          : await query;
+      final daftar = (remote as List).cast<Map<String, dynamic>>();
+
+      final dbBuka = await DatabaseLokal.instance.db;
+      final kolomBool = _kolomBoolean[tabel] ?? const <String>{};
+      var diunduh = 0;
+      var dilewati = 0;
+
+      for (final baris in daftar) {
+        final peta = Map<String, Object?>.from(baris);
+        final id = peta['id'] as String?;
+        if (id == null || id.isEmpty) {
+          dilewati++;
+          continue;
+        }
+
+        final lokal = await dbBuka.query(
+          tabel,
+          where: 'id = ?',
+          whereArgs: [id],
+          limit: 1,
+        );
+
+        if (lokal.isNotEmpty) {
+          // Jangan timpa perubahan lokal yang belum terunggah.
+          if (lokal.first['status_sinkron'] == 'tertunda') {
+            dilewati++;
+            continue;
+          }
+          // Last-write-wins: bandingkan kolom waktu (string ISO8601 UTC —
+          // perbandingan leksikografis valid untuk format yang sama).
+          if (konfig.kolomWaktu == 'diperbarui_pada') {
+            final waktuRemote = peta['diperbarui_pada'] as String? ?? '';
+            final waktuLokal =
+                lokal.first['diperbarui_pada'] as String? ?? '';
+            if (waktuRemote.compareTo(waktuLokal) <= 0) {
+              dilewati++;
+              continue;
+            }
+          } else {
+            // Tanpa kolom update → jangan timpa yang sudah ada.
+            dilewati++;
+            continue;
+          }
+        }
+
+        // Konversi boolean → 1/0, tandai tersinkron.
+        final barisLokal = <String, Object?>{};
+        for (final entri in peta.entries) {
+          final nilai = entri.value;
+          if (kolomBool.contains(entri.key) && nilai is bool) {
+            barisLokal[entri.key] = nilai ? 1 : 0;
+          } else {
+            barisLokal[entri.key] = nilai;
+          }
+        }
+        barisLokal['status_sinkron'] = 'tersinkron';
+
+        await dbBuka.insert(
+          tabel,
+          barisLokal,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        diunduh++;
+      }
+
+      return HasilUnduhTabel(
+        tabel: tabel,
+        jumlahServer: daftar.length,
+        jumlahDiunduh: diunduh,
+        jumlahDilewati: dilewati,
+      );
+    } catch (e) {
+      debugPrint('[Sinkron] unduh $tabel gagal: $e');
+      return HasilUnduhTabel(
+          tabel: tabel, jumlahServer: 0, jumlahDiunduh: 0, jumlahDilewati: 0);
+    }
+  }
+
+  /// Validasi + pemetaan satu baris akun Supabase → baris SQLite.
+  ///
+  /// Mengembalikan null bila data tidak valid (kolom kritikal kosong).
+  /// Dipisah sebagai fungsi murni agar bisa di-unit-test.
+  ///
+  /// Kolom kritikal:
+  /// - id, nama, peran: wajib tidak kosong
+  /// - pin_hash: wajib untuk peran 'kasir' (tanpa ini kasir tidak bisa login!)
+  /// - aktif: boolean Supabase → 1/0 SQLite
+  @visibleForTesting
+  static Map<String, Object?>? petakanBarisAkun(
+      Map<String, Object?> peta) {
+    final id = peta['id'] as String?;
+    final nama = peta['nama'] as String?;
+    final peran = peta['peran'] as String?;
+    if (id == null || id.isEmpty) return null;
+    if (nama == null || nama.trim().isEmpty) return null;
+    if (peran == null || peran.isEmpty) return null;
+
+    // KRITIKAL: kasir tanpa pin_hash = tidak bisa login = "akun hilang".
+    final pinHash = peta['pin_hash'] as String?;
+    if (peran == 'kasir' && (pinHash == null || pinHash.isEmpty)) {
+      return null;
+    }
+
+    return <String, Object?>{
+      'id': id,
+      'nama': nama,
+      'pin_hash': pinHash,
+      'peran': peran,
+      'aktif': (peta['aktif'] as bool? ?? true) ? 1 : 0,
+      'status_sinkron': 'tersinkron',
+      'diperbarui_pada': peta['diperbarui_pada'] ??
+          peta['diperbaruiPada'] ??
+          DateTime.now().toUtc().toIso8601String(),
+      'apakah_dihapus': (peta['apakah_dihapus'] as bool? ?? false) ? 1 : 0,
+    };
+  }
+
+  /// Catat hasil unduh akun ke SharedPreferences.
+  ///
+  /// Sukses → simpan timestamp + jumlah, reset gagal-beruntun ke 0.
+  /// Gagal → naikkan gagal-beruntun (putaran berikutnya tetap mencoba).
+  Future<void> _catatUnduhAkun({
+    required bool berhasil,
+    required int jumlah,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (berhasil) {
+        await prefs.setString(kunciAkunUnduhTerakhir,
+            DateTime.now().toUtc().toIso8601String());
+        await prefs.setInt(kunciAkunUnduhJumlah, jumlah);
+        await prefs.setInt(kunciAkunUnduhGagalBeruntun, 0);
+      } else {
+        final gagal = prefs.getInt(kunciAkunUnduhGagalBeruntun) ?? 0;
+        await prefs.setInt(kunciAkunUnduhGagalBeruntun, gagal + 1);
       }
     } catch (_) {
-      // Lewati diam-diam — dicoba lagi pada putaran berikutnya.
+      // Penyimpanan status gagal — unduhnya sendiri tetap jalan.
+    }
+  }
+
+  /// Baca info unduh akun terakhir untuk ditampilkan di UI.
+  /// Mengembalikan null bila belum pernah berhasil mengunduh.
+  static Future<InfoUnduhAkun?> bacaInfoUnduhAkun() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final waktuIso = prefs.getString(kunciAkunUnduhTerakhir);
+      if (waktuIso == null) return null;
+      return InfoUnduhAkun(
+        waktu: DateTime.parse(waktuIso),
+        jumlah: prefs.getInt(kunciAkunUnduhJumlah) ?? 0,
+        gagalBeruntun: prefs.getInt(kunciAkunUnduhGagalBeruntun) ?? 0,
+      );
+    } catch (_) {
+      return null;
     }
   }
 

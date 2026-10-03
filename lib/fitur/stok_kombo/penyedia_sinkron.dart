@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'layanan_notifikasi.dart';
 import 'mesin_sinkron.dart';
 
 /// Mesin sinkron upload-only, dipakai koordinator pemicu berkala.
@@ -43,6 +44,9 @@ final pemicuSinkronOtomatis = Provider<void>((ref) {
     } else {
       notifikasi.ubah('Sebagian gagal');
     }
+    // Setelah sinkron: cek bahan menipis → notifikasi lokal
+    // (maks 1x per bahan per hari, tidak spam).
+    await LayananNotifikasi.cekBahanMenipis();
   }
 
   // Jalankan sekali tak lama setelah start (beri waktu UI tampil dulu).

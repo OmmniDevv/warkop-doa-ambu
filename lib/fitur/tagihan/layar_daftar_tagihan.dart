@@ -12,6 +12,7 @@ import '../../bersama/widget/orb_latar.dart';
 import '../../bersama/widget/tombol_kaca.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/open_bill.dart';
+import '../../bersama/util/waktu_wib.dart';
 
 /// Daftar open bill yang masih buka, terbaru dulu.
 final daftarOpenBillProvider = FutureProvider<List<OpenBill>>((ref) async {
@@ -42,7 +43,7 @@ final ringkasanTagihanProvider =
 
 /// Waktu singkat: "4/10 00:18".
 String formatWaktuSingkat(DateTime waktu) {
-  final lokal = waktu.toLocal();
+  final lokal = keWib(waktu);
   final jam = lokal.hour.toString().padLeft(2, '0');
   final menit = lokal.minute.toString().padLeft(2, '0');
   return '${lokal.day}/${lokal.month} $jam:$menit';

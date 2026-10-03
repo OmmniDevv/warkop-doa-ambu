@@ -10,6 +10,7 @@ import '../../bersama/widget/kartu_kaca.dart';
 import '../../bersama/widget/tombol_tema.dart';
 import '../../data/model/akun.dart';
 import '../stok_kombo/mesin_sinkron.dart';
+import '../../fitur/dasbor/util_tanggal.dart';
 
 /// Layar pemilihan kasir — gerbang masuk sebelum PIN.
 ///
@@ -20,19 +21,24 @@ import '../stok_kombo/mesin_sinkron.dart';
 class LayarPilihKasir extends ConsumerWidget {
   const LayarPilihKasir({super.key});
 
-  Future<List<Akun>> _muatKasir(WidgetRef ref) async {
+  /// Muat daftar kasir + info sinkron akun terakhir (dibaca SETELAH
+  /// sinkron selesai agar status "Terakhir sinkron" akurat).
+  Future<({List<Akun> daftar, InfoUnduhAkun? info})> _muatKasir(
+      WidgetRef ref) async {
     // Coba sinkron (termasuk unduh akun) dulu; gagal = lanjut offline.
     try {
       await MesinSinkron().sinkronkan();
     } catch (_) {
       // Abaikan — pakai data lokal.
     }
+    final info = await MesinSinkron.bacaInfoUnduhAkun();
     final semua = await ref.read(penyediaDatabaseLokal).daftarAkun(
           hanyaAktif: true,
         );
-    return semua
+    final daftar = semua
         .where((a) => a.peran == 'kasir' && a.aktif && !a.apakahDihapus)
         .toList();
+    return (daftar: daftar, info: info);
   }
 
   @override
@@ -43,7 +49,7 @@ class LayarPilihKasir extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('PILIH KASIR'), actions: const [TombolTema()]),
       body: SafeArea(
-        child: FutureBuilder<List<Akun>>(
+        child: FutureBuilder<({List<Akun> daftar, InfoUnduhAkun? info})>(
           future: _muatKasir(ref),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -60,7 +66,9 @@ class LayarPilihKasir extends ConsumerWidget {
               );
             }
 
-            final daftar = snapshot.data ?? [];
+            final hasil = snapshot.data;
+            final daftar = hasil?.daftar ?? [];
+            final info = hasil?.info;
             if (daftar.isEmpty) {
               return _PesanTengah(
                 ikon: Icons.person_add_alt_outlined,
@@ -87,6 +95,7 @@ class LayarPilihKasir extends ConsumerWidget {
                         ?.copyWith(color: aksen),
                   ),
                 ),
+                _StatusSinkronAkun(info: info),
                 Expanded(
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
@@ -111,6 +120,62 @@ class LayarPilihKasir extends ConsumerWidget {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// Banner status sinkron akun: "Terakhir sinkron: ...".
+///
+/// Agar user tahu daftar kasir fresh dari server — bukan data basi.
+/// Menampilkan peringatan bila belum pernah sinkron / gagal beruntun.
+/// [info] dibaca SETELAH sinkron selesai agar akurat.
+class _StatusSinkronAkun extends StatelessWidget {
+  const _StatusSinkronAkun({required this.info});
+
+  final InfoUnduhAkun? info;
+
+  @override
+  Widget build(BuildContext context) {
+    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final teksRedup = gelap
+        ? WarnaWarkop.teksSekunderGelap
+        : WarnaWarkop.teksSekunderTerang;
+
+    late final String teks;
+    late final IconData ikon;
+    late final Color warna;
+    if (info == null) {
+      teks = 'Belum pernah sinkron akun dari server';
+      ikon = Icons.cloud_off_outlined;
+      warna = WarnaWarkop.merahMenyala;
+    } else if (info!.gagalBeruntun > 0) {
+      teks = 'Sinkron akun gagal ${info!.gagalBeruntun}x — '
+          'akan dicoba lagi otomatis';
+      ikon = Icons.sync_problem_outlined;
+      warna = WarnaWarkop.merahMenyala;
+    } else {
+      teks = 'Terakhir sinkron: ${formatTanggalWaktu(info!.waktu)} '
+          '• ${info!.jumlah} akun';
+      ikon = Icons.cloud_done_outlined;
+      warna = WarnaWarkop.hijauAman;
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: Row(
+        children: [
+          Icon(ikon, size: 14, color: warna),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              teks,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: teksRedup),
+            ),
+          ),
+        ],
       ),
     );
   }

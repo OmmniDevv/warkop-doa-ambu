@@ -6,6 +6,7 @@ import '../../bersama/widget/kartu_kaca.dart';
 import '../../bersama/widget/orb_latar.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/stok_opname.dart';
+import '../../bersama/util/waktu_wib.dart';
 
 /// Riwayat opname yang pernah dilakukan.
 final _penyediaRiwayatOpname = FutureProvider<List<StokOpname>>(
@@ -64,7 +65,7 @@ class _BarisRiwayat extends StatelessWidget {
       nilai == nilai.roundToDouble() ? '${nilai.toInt()}' : '$nilai';
 
   String _tanggal(DateTime w) {
-    final t = w.toLocal();
+    final t = keWib(w);
     final jam =
         '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
     return '${t.day}/${t.month}/${t.year} $jam';

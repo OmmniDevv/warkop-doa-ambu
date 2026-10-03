@@ -14,6 +14,7 @@ import '../../bersama/widget/tombol_kaca.dart';
 import '../../data/model/kas_keluar.dart';
 import '../../data/model/log_audit.dart';
 import '../kasir/penyedia_kasir.dart';
+import '../../bersama/util/waktu_wib.dart';
 
 /// Kategori pengeluaran yang bisa dipilih saat mencatat kas keluar.
 const _daftarKategori = [
@@ -32,7 +33,7 @@ const _namaBulan = [
 
 /// Format tanggal Indonesia: 4 Okt 2026 14:30.
 String _formatTanggalJam(DateTime tanggal) {
-  final lokal = tanggal.toLocal();
+  final lokal = keWib(tanggal);
   final jam = lokal.hour.toString().padLeft(2, '0');
   final menit = lokal.minute.toString().padLeft(2, '0');
   return '${lokal.day} ${_namaBulan[lokal.month - 1]} ${lokal.year} $jam:$menit';

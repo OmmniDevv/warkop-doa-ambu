@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,112 @@ import '../../app/router.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/widget/kartu_kaca.dart';
 import '../../bersama/widget/orb_latar.dart';
+import '../dasbor/direktori_ekspor.dart';
+
+/// Status folder export pilihan user (untuk refresh tampilan).
+final penyediaFolderEkspor =
+    FutureProvider<String>((ref) async {
+  return DirektoriEkspor.labelFolderAktif();
+});
+
+/// Kartu pengaturan folder penyimpanan laporan (PDF & Excel).
+///
+/// Menampilkan folder aktif + tombol pilih folder + kembalikan ke default.
+class _KartuFolderEkspor extends ConsumerWidget {
+  const _KartuFolderEkspor({required this.teksSekunder});
+
+  final Color teksSekunder;
+
+  Future<void> _pilihFolder(BuildContext context, WidgetRef ref) async {
+    HapticFeedback.lightImpact();
+    final path = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Pilih folder penyimpanan laporan',
+    );
+    if (path == null) return; // User batal.
+    await DirektoriEkspor.simpanFolderKustom(path);
+    ref.invalidate(penyediaFolderEkspor);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Folder export: $path')),
+      );
+    }
+  }
+
+  Future<void> _kembalikanDefault(BuildContext context, WidgetRef ref) async {
+    await DirektoriEkspor.simpanFolderKustom(null);
+    ref.invalidate(penyediaFolderEkspor);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Kembali ke folder default Documents/WarkopDoaAmbu')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final folderAsync = ref.watch(penyediaFolderEkspor);
+
+    return KartuKaca(
+      tanpaBlur: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.folder_outlined,
+                color: WarnaWarkop.aksenTerang,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Folder Penyimpanan Laporan',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          folderAsync.when(
+            data: (path) => Text(
+              path,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: teksSekunder,
+                    fontFamily: 'monospace',
+                  ),
+            ),
+            loading: () => const SizedBox(
+              height: 16,
+              child: LinearProgressIndicator(),
+            ),
+            error: (_, __) => const Text('Gagal memuat folder.'),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _pilihFolder(context, ref),
+                  icon: const Icon(Icons.drive_folder_upload_outlined, size: 18),
+                  label: const Text('Pilih Folder'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: () => _kembalikanDefault(context, ref),
+                tooltip: 'Kembalikan ke default',
+                icon: const Icon(Icons.restart_alt_outlined),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 /// Layar pengaturan: tema, info profil warkop, dan keluar.
 class LayarPengaturan extends ConsumerWidget {
@@ -150,6 +257,9 @@ class LayarPengaturan extends ConsumerWidget {
                     },
                   ),
                 ),
+                const SizedBox(height: 16),
+                // ── Folder export laporan ────────────────────────────
+                _KartuFolderEkspor(teksSekunder: teksSekunder),
                 const SizedBox(height: 16),
                 // ── Tentang ──────────────────────────────────────────
                 KartuKaca(
