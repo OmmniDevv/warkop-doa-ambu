@@ -19,6 +19,9 @@ class Pesanan {
     this.fotoBuktiRemote,
     this.voidAlasan,
     this.voidDisetujuiOwner = false,
+    this.diskonNotaNominal = 0,
+    this.diskonNotaPersen = 0,
+    this.alasanDiskon,
     this.statusSinkron = 'tertunda',
     required this.diperbaruiPada,
     this.apakahDihapus = false,
@@ -38,6 +41,9 @@ class Pesanan {
   final String? fotoBuktiRemote;
   final String? voidAlasan;
   final bool voidDisetujuiOwner;
+  final int diskonNotaNominal;
+  final double diskonNotaPersen;
+  final String? alasanDiskon;
   final String statusSinkron; // 'tertunda' | 'tersinkron' | 'gagal'
   final DateTime diperbaruiPada;
   final bool apakahDihapus;
@@ -57,6 +63,9 @@ class Pesanan {
     String? fotoBuktiRemote,
     String? voidAlasan,
     bool? voidDisetujuiOwner,
+    int? diskonNotaNominal,
+    double? diskonNotaPersen,
+    String? alasanDiskon,
     String? statusSinkron,
     DateTime? diperbaruiPada,
     bool? apakahDihapus,
@@ -76,6 +85,9 @@ class Pesanan {
       fotoBuktiRemote: fotoBuktiRemote ?? this.fotoBuktiRemote,
       voidAlasan: voidAlasan ?? this.voidAlasan,
       voidDisetujuiOwner: voidDisetujuiOwner ?? this.voidDisetujuiOwner,
+      diskonNotaNominal: diskonNotaNominal ?? this.diskonNotaNominal,
+      diskonNotaPersen: diskonNotaPersen ?? this.diskonNotaPersen,
+      alasanDiskon: alasanDiskon ?? this.alasanDiskon,
       statusSinkron: statusSinkron ?? this.statusSinkron,
       diperbaruiPada: diperbaruiPada ?? this.diperbaruiPada,
       apakahDihapus: apakahDihapus ?? this.apakahDihapus,
@@ -97,6 +109,9 @@ class Pesanan {
         'foto_bukti_remote': fotoBuktiRemote,
         'void_alasan': voidAlasan,
         'void_disetujui_owner': voidDisetujuiOwner ? 1 : 0,
+        'diskon_nota_nominal': diskonNotaNominal,
+        'diskon_nota_persen': diskonNotaPersen,
+        'alasan_diskon': alasanDiskon,
         'status_sinkron': statusSinkron,
         'diperbarui_pada': diperbaruiPada.toUtc().toIso8601String(),
         'apakah_dihapus': apakahDihapus ? 1 : 0,
@@ -118,9 +133,14 @@ class Pesanan {
       fotoBuktiRemote: map['foto_bukti_remote'] as String?,
       voidAlasan: map['void_alasan'] as String?,
       voidDisetujuiOwner: (map['void_disetujui_owner'] as int? ?? 0) == 1,
+      diskonNotaNominal: (map['diskon_nota_nominal'] as num?)?.toInt() ?? 0,
+      diskonNotaPersen:
+          (map['diskon_nota_persen'] as num?)?.toDouble() ?? 0,
+      alasanDiskon: map['alasan_diskon'] as String?,
       statusSinkron: (map['status_sinkron'] as String?) ?? 'tertunda',
       diperbaruiPada: DateTime.parse(map['diperbarui_pada'] as String),
       apakahDihapus: (map['apakah_dihapus'] as int? ?? 0) == 1,
     );
   }
 }
+
