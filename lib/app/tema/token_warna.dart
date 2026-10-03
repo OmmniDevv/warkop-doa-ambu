@@ -1,58 +1,91 @@
 import 'package:flutter/material.dart';
 
-/// Token warna Vintage Glassmorphism — DNA visual dari `icon.png`.
+/// Token warna Violet Glassmorphism — sistem desain baru Warkop Doa Ambu.
 ///
-/// Terang = Vintage Parchment, Gelap = Roasted Espresso.
+/// Filosofi: quiet luxury. Kaca buram premium dengan aksen violet tunggal.
+/// Tiga lapis kedalaman: atmosfer (gradien latar) → difusi (orb warna) →
+/// permukaan (kartu kaca).
+///
 /// Jangan pakai warna hardcoded di widget; selalu ambil dari sini lewat
 /// [Theme.of(context)] atau [WarnaWarkop].
 abstract final class WarnaWarkop {
-  // ── Mode terang · Vintage Parchment ──────────────────────────────
-  /// Latar krem kertas kuno.
-  static const Color kertasTerang = Color(0xFFF5EEDB);
+  // ── Aksen utama · Violet ──────────────────────────────────────────
+  /// Aksen utama: violet untuk semua elemen interaktif.
+  static const Color aksenTerang = Color(0xFF6B4EFF);
 
-  /// Permukaan kaca: putih 55%.
-  static const Color kacaTerang = Color(0x8CFFFFFF);
+  /// Aksen mode gelap: violet lebih terang agar kontras di latar gelap.
+  static const Color aksenGelap = Color(0xFF9D8FFF);
 
-  /// Border kaca: marun #961C18 @18%.
-  static const Color borderKacaTerang = Color(0x2E961C18);
+  /// Violet gelap untuk hover/pressed.
+  static const Color aksenGelapHover = Color(0xFF5038E0);
 
-  /// Aksen utama: merah marun pekat khas logo.
-  static const Color aksenTerang = Color(0xFF961C18);
+  /// Tint violet untuk latar ghost button & tag.
+  static const Color tintAksen = Color(0x1A6B4EFF);
 
-  /// Teks utama: espresso pekat.
-  static const Color teksTerang = Color(0xFF231815);
+  // ── Mode terang · Lavender Blush ──────────────────────────────────
+  /// Latar dasar lavender-blush (dipakai sebagai warna solid; gradien
+  /// lengkap digambar oleh OrbLatar).
+  static const Color kertasTerang = Color(0xFFF1EAFF);
 
-  /// Teks sekunder: espresso 65%.
-  static const Color teksSekunderTerang = Color(0xA6231815);
+  /// Permukaan kaca kuat: putih 52%.
+  static const Color kacaTerang = Color(0x85FFFFFF);
 
-  // ── Mode gelap · Roasted Espresso ────────────────────────────────
-  /// Latar hitam biji kopi panggang.
-  static const Color kertasGelap = Color(0xFF120D0B);
+  /// Kaca sedang: putih 38%.
+  static const Color kacaTerangSedang = Color(0x61FFFFFF);
 
-  /// Permukaan kaca: espresso 60%.
-  static const Color kacaGelap = Color(0x99231815);
+  /// Kaca ringan: putih 26%.
+  static const Color kacaTerangRingan = Color(0x42FFFFFF);
 
-  /// Border kaca: emas kuningan #DAA520 @30%.
-  static const Color borderKacaGelap = Color(0x4DDAA520);
+  /// Border kaca: putih 68%.
+  static const Color borderKacaTerang = Color(0xADFFFFFF);
 
-  /// Aksen utama: marun menyala hangat.
-  static const Color aksenGelap = Color(0xFFC4302B);
+  /// Teks utama: near-black sejuk.
+  static const Color teksTerang = Color(0xFF1E1B4B);
 
-  /// Teks utama: krem susu gading.
-  static const Color teksGelap = Color(0xFFF4EFEA);
+  /// Teks sekunder: near-black 65%.
+  static const Color teksSekunderTerang = Color(0xA61E1B4B);
 
-  /// Teks sekunder: krem 65%.
-  static const Color teksSekunderGelap = Color(0xA6F4EFEA);
+  // ── Mode gelap · Deep Violet Night ────────────────────────────────
+  /// Latar malam ungu pekat.
+  static const Color kertasGelap = Color(0xFF12101D);
 
-  // ── Warna semantik (kedua mode) ──────────────────────────────────
-  /// Emas kuningan untuk badge sukses & aksen dekoratif.
-  static const Color emas = Color(0xFFDAA520);
+  /// Permukaan kaca gelap: putih 14%.
+  static const Color kacaGelap = Color(0x24FFFFFF);
 
-  /// Merah menyala untuk status error / PIN salah.
+  /// Kaca sedang gelap: putih 10%.
+  static const Color kacaGelapSedang = Color(0x1AFFFFFF);
+
+  /// Kaca ringan gelap: putih 6%.
+  static const Color kacaGelapRingan = Color(0x0FFFFFFF);
+
+  /// Border kaca gelap: putih 18%.
+  static const Color borderKacaGelap = Color(0x2EFFFFFF);
+
+  /// Teks utama gelap: lavender-putih.
+  static const Color teksGelap = Color(0xFFF4F1FF);
+
+  /// Teks sekunder gelap: lavender-putih 65%.
+  static const Color teksSekunderGelap = Color(0xA6F4F1FF);
+
+  // ── Warna orb (latar animasi) ─────────────────────────────────────
+  /// Orb violet utama.
+  static const Color orbViolet = Color(0xFFA78BFA);
+
+  /// Orb pink/blush.
+  static const Color orbPink = Color(0xFFF9A8D4);
+
+  /// Orb oranye (aksen hangat, dipakai hemat).
+  static const Color orbOranye = Color(0xFFFB923C);
+
+  // ── Warna semantik (kedua mode) ───────────────────────────────────
+  /// Emas untuk badge & peringatan.
+  static const Color emas = Color(0xFFF59E0B);
+
+  /// Merah untuk error.
   static const Color merahMenyala = Color(0xFFE03131);
 
-  /// Hijau untuk status aman / tersinkron.
-  static const Color hijauAman = Color(0xFF2F9E44);
+  /// Hijau untuk sukses.
+  static const Color hijauAman = Color(0xFF3AB07A);
 
   /// Kuning untuk antrean offline.
   static const Color kuningAntre = Color(0xFFF08C00);
