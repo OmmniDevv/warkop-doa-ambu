@@ -154,10 +154,11 @@ class NavPillBawah extends StatelessWidget {
     Color aksen,
     Color teksRedup,
   ) {
-    // Mapping: item[0,1] kiri, item[2,3] kanan.
+    // Mapping: item[0,1] kiri → cabang 0,1; item[2,3] kanan → cabang 3,4
+    // (cabang 2 = tombol tengah). Samakan dengan mapping di onTap.
     final data = item[indeks];
-    final aktif = indeksAktif == indeks ||
-        (indeks >= 2 && indeksAktif == indeks + 1);
+    final cabang = indeks >= 2 ? indeks + 1 : indeks;
+    final aktif = indeksAktif == cabang;
 
     return GestureDetector(
       onTap: () {
@@ -195,4 +196,3 @@ class NavPillBawah extends StatelessWidget {
     );
   }
 }
-
