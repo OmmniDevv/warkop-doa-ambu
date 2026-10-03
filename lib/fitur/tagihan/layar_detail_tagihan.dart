@@ -356,7 +356,7 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
               }
               if (daftar.isEmpty) {
                 return const KartuKaca(
-                  pakaiBlur: false,
+                  tanpaBlur: true,
                   child: Text(
                     'Belum ada nota di tagihan ini.\n'
                     'Tambah pesanan lewat tombol di bawah.',
@@ -435,7 +435,7 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
               ? const Padding(
                   padding: EdgeInsets.all(20),
                   child: KartuKaca(
-                    pakaiBlur: false,
+                    tanpaBlur: true,
                     child: Text(
                       'Tidak ada nota aktif untuk dipisah.',
                       textAlign: TextAlign.center,
@@ -634,7 +634,7 @@ class _KartuPesanan extends ConsumerWidget {
     final masihBaru = pesanan.status == 'baru';
 
     return KartuKaca(
-      pakaiBlur: false,
+      tanpaBlur: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -921,7 +921,7 @@ class _KelompokPisah extends ConsumerWidget {
       data: (daftar) {
         if (daftar.isEmpty) return const SizedBox.shrink();
         return KartuKaca(
-          pakaiBlur: false,
+          tanpaBlur: true,
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
