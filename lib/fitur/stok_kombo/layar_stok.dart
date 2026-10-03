@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../app/router.dart';
 import '../../../app/tema/token_tipografi.dart';
 import '../../../app/tema/token_warna.dart';
 import '../../../bersama/util/id_unik.dart';
@@ -11,29 +13,23 @@ import '../../../data/lokal/database_lokal.dart';
 import '../../../data/model/kategori_menu.dart';
 import '../../../data/model/log_audit.dart';
 import '../../../data/model/menu.dart';
-
-/// Daftar kategori menu (urut tampilan) untuk pengelompokan stok.
-final _penyediaKategoriStok = FutureProvider<List<KategoriMenu>>(
-  (ref) => DatabaseLokal.instance.daftarKategori(),
-);
-
-/// Daftar seluruh menu (urut nama) untuk layar stok.
-final _penyediaMenuStok = FutureProvider<List<Menu>>(
-  (ref) => DatabaseLokal.instance.daftarMenu(),
-);
+import 'penyedia_stok.dart';
 
 /// Layar pengelolaan stok (owner/kasir).
 ///
 /// Daftar semua menu dikelompokkan per kategori. Setiap baris menampilkan
 /// nama, stok saat ini (besar), dan badge "Menipis"/"Habis". Tap baris
 /// membuka bottom sheet "Kelola Stok" di area bawah layar.
+///
+/// Baris shortcut di atas menuju modul bahan, stok opname, riwayat opname,
+/// dan daftar belanja.
 class LayarStok extends ConsumerWidget {
   const LayarStok({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final menuAsync = ref.watch(_penyediaMenuStok);
-    final kategoriAsync = ref.watch(_penyediaKategoriStok);
+    final menuAsync = ref.watch(penyediaMenuStokBersama);
+    final kategoriAsync = ref.watch(penyediaKategoriStokBersama);
 
     return Scaffold(
       appBar: AppBar(title: const Text('STOK')),
@@ -73,7 +69,7 @@ class _IsiStok extends ConsumerWidget {
         padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: _LembarKelolaStok(
           menu: menu,
-          saatSimpan: () => ref.invalidate(_penyediaMenuStok),
+          saatSimpan: () => ref.invalidate(penyediaMenuStokBersama),
         ),
       ),
     );
@@ -129,13 +125,52 @@ class _IsiStok extends ConsumerWidget {
             ],
           ),
         ),
+        // ── Shortcut modul stok ──────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: Row(
+            children: [
+              Expanded(
+                child: _TombolShortcut(
+                  label: 'Bahan',
+                  ikon: Icons.inventory_2_outlined,
+                  saatTap: () => context.push(Rute.bahan),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _TombolShortcut(
+                  label: 'Opname',
+                  ikon: Icons.fact_check_outlined,
+                  saatTap: () => context.push(Rute.stokOpname),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _TombolShortcut(
+                  label: 'Riwayat',
+                  ikon: Icons.history_outlined,
+                  saatTap: () => context.push(Rute.riwayatOpname),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _TombolShortcut(
+                  label: 'Belanja',
+                  ikon: Icons.shopping_cart_outlined,
+                  saatTap: () => context.push(Rute.belanja),
+                ),
+              ),
+            ],
+          ),
+        ),
         // ── Daftar per kategori ──────────────────────────────────
         Expanded(
           child: semuaMenu.isEmpty
               ? const Padding(
                   padding: EdgeInsets.all(20),
                   child: KartuKaca(
-                    pakaiBlur: false,
+                    tanpaBlur: true,
                     child: Text(
                       'Belum ada menu. Tambahkan menu dulu dari modul kasir.',
                     ),
@@ -174,6 +209,55 @@ class _EntriDaftar {
   final Menu? menu;
 }
 
+/// Tombol shortcut kecil menuju modul stok lain (bahan/opname/belanja).
+class _TombolShortcut extends StatelessWidget {
+  const _TombolShortcut({
+    required this.label,
+    required this.ikon,
+    required this.saatTap,
+  });
+
+  final String label;
+  final IconData ikon;
+  final VoidCallback saatTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        saatTap();
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: aksen.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: aksen.withValues(alpha: 0.35)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(ikon, size: 22, color: aksen),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: aksen,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _HeaderKategori extends StatelessWidget {
   const _HeaderKategori({required this.judul});
 
@@ -208,7 +292,7 @@ class _KartuRingkasan extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return KartuKaca(
-      pakaiBlur: false,
+      tanpaBlur: true,
       border: warna.withValues(alpha: 0.45),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -246,7 +330,7 @@ class _BarisMenu extends StatelessWidget {
       onTap: saatTap,
       behavior: HitTestBehavior.opaque,
       child: KartuKaca(
-        pakaiBlur: false,
+        tanpaBlur: true,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
@@ -346,7 +430,7 @@ class _PesanGalat extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: KartuKaca(
-        pakaiBlur: false,
+        tanpaBlur: true,
         border: WarnaWarkop.merahMenyala.withValues(alpha: 0.45),
         child: Text('Gagal memuat stok: $pesan'),
       ),
