@@ -126,7 +126,7 @@ class _KartuKasir extends StatelessWidget {
         akun.nama.trim().isEmpty ? '?' : akun.nama.trim()[0].toUpperCase();
 
     return KartuKaca(
-      pakaiBlur: false,
+      tanpaBlur: true,
       bayangan: false,
       padding: const EdgeInsets.all(16),
       child: InkWell(
