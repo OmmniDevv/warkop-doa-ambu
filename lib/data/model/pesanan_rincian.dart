@@ -13,6 +13,8 @@ class PesananRincian {
     this.jumlah = 1,
     required this.subtotal,
     this.catatan,
+    this.diskonNominal = 0,
+    this.diskonPersen = 0,
     this.statusSinkron = 'tertunda',
     required this.diperbaruiPada,
     this.apakahDihapus = false,
@@ -27,6 +29,8 @@ class PesananRincian {
   final int jumlah;
   final int subtotal;
   final String? catatan;
+  final int diskonNominal;
+  final double diskonPersen;
   final String statusSinkron; // 'tertunda' | 'tersinkron' | 'gagal'
   final DateTime diperbaruiPada;
   final bool apakahDihapus;
@@ -41,6 +45,8 @@ class PesananRincian {
     int? jumlah,
     int? subtotal,
     String? catatan,
+    int? diskonNominal,
+    double? diskonPersen,
     String? statusSinkron,
     DateTime? diperbaruiPada,
     bool? apakahDihapus,
@@ -55,6 +61,8 @@ class PesananRincian {
       jumlah: jumlah ?? this.jumlah,
       subtotal: subtotal ?? this.subtotal,
       catatan: catatan ?? this.catatan,
+      diskonNominal: diskonNominal ?? this.diskonNominal,
+      diskonPersen: diskonPersen ?? this.diskonPersen,
       statusSinkron: statusSinkron ?? this.statusSinkron,
       diperbaruiPada: diperbaruiPada ?? this.diperbaruiPada,
       apakahDihapus: apakahDihapus ?? this.apakahDihapus,
@@ -71,6 +79,8 @@ class PesananRincian {
         'jumlah': jumlah,
         'subtotal': subtotal,
         'catatan': catatan,
+        'diskon_nominal': diskonNominal,
+        'diskon_persen': diskonPersen,
         'status_sinkron': statusSinkron,
         'diperbarui_pada': diperbaruiPada.toUtc().toIso8601String(),
         'apakah_dihapus': apakahDihapus ? 1 : 0,
@@ -87,9 +97,12 @@ class PesananRincian {
       jumlah: (map['jumlah'] as int?) ?? 1,
       subtotal: (map['subtotal'] as int?) ?? 0,
       catatan: map['catatan'] as String?,
+      diskonNominal: (map['diskon_nominal'] as num?)?.toInt() ?? 0,
+      diskonPersen: (map['diskon_persen'] as num?)?.toDouble() ?? 0,
       statusSinkron: (map['status_sinkron'] as String?) ?? 'tertunda',
       diperbaruiPada: DateTime.parse(map['diperbarui_pada'] as String),
       apakahDihapus: (map['apakah_dihapus'] as int? ?? 0) == 1,
     );
   }
 }
+
