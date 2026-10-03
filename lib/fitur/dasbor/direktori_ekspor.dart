@@ -2,15 +2,19 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-/// Helper direktori export: semua berkas PDF & Excel disimpan ke
-/// `/storage/emulated/0/Documents/WarkopDoaAmbu/` agar mudah ditemukan
-/// user. Bila gagal (izin ditolak / Android 11+ scoped storage),
-/// fallback ke direktori dokumen aplikasi.
+/// Helper direktori export: semua berkas PDF & Excel disimpan ke folder
+/// pilihan user (default: `/storage/emulated/0/Documents/WarkopDoaAmbu/`)
+/// agar mudah ditemukan. Bila gagal (izin ditolak / Android 11+ scoped
+/// storage), fallback ke direktori dokumen aplikasi.
 class DirektoriEkspor {
   DirektoriEkspor._();
 
   static const _namaFolder = 'WarkopDoaAmbu';
+
+  /// Kunci folder kustom di SharedPreferences (dipilih via Pengaturan).
+  static const kunciFolderKustom = 'wda_folder_ekspor_kustom';
 
   /// Minta izin penyimpanan bila diperlukan (Android saja).
   /// Mengembalikan true bila boleh menulis ke penyimpanan publik.
@@ -25,8 +29,21 @@ class DirektoriEkspor {
     return hasil.isGranted || hasil.isLimited;
   }
 
-  /// Direktori `Documents/WarkopDoaAmbu` (publik) atau fallback.
+  /// Direktori export: folder kustom (bila dipilih) → `Documents/WarkopDoaAmbu`
+  /// (publik) → fallback direktori dokumen aplikasi.
   static Future<Directory> direktori() async {
+    final kustom = await folderKustom();
+    if (kustom != null) {
+      final folder = Directory(kustom);
+      try {
+        if (!await folder.exists()) {
+          await folder.create(recursive: true);
+        }
+        return folder;
+      } catch (_) {
+        // Folder kustom tidak bisa dipakai — lanjut ke default.
+      }
+    }
     final publik = await _direktoriPublik();
     if (publik != null) return publik;
     final app = await getApplicationDocumentsDirectory();
@@ -35,6 +52,32 @@ class DirektoriEkspor {
       await folder.create(recursive: true);
     }
     return folder;
+  }
+
+  /// Path folder kustom pilihan user, atau null bila belum memilih.
+  static Future<String?> folderKustom() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(kunciFolderKustom);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Simpan pilihan folder kustom. Null = kembali ke default.
+  static Future<void> simpanFolderKustom(String? path) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (path == null) {
+      await prefs.remove(kunciFolderKustom);
+    } else {
+      await prefs.setString(kunciFolderKustom, path);
+    }
+  }
+
+  /// Label folder yang sedang dipakai (untuk ditampilkan di Pengaturan).
+  static Future<String> labelFolderAktif() async {
+    final folder = await direktori();
+    return folder.path;
   }
 
   /// Coba buka/buat folder publik. Null bila tidak bisa (fallback).

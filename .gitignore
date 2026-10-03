@@ -49,3 +49,4 @@ app.*.map.json
 
 # Env & secrets
 .env
+build-apk/
