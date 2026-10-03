@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/penyedia.dart';
 import 'app/router.dart';
 import 'app/tema/tema_app.dart';
+import 'fitur/stok_kombo/penyedia_sinkron.dart';
 
 /// Titik masuk aplikasi Warkop Doa Ambu.
 ///
@@ -52,6 +53,8 @@ class AplikasiWarkop extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final gelap = ref.watch(penyediaModeGelap);
+    // Hidupkan sinkronisasi otomatis selama aplikasi berjalan.
+    ref.watch(pemicuSinkronOtomatis);
 
     return MaterialApp.router(
       title: 'Warkop Doa Ambu',
