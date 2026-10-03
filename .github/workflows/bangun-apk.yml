@@ -1,0 +1,60 @@
+# Build APK otomatis setiap ada perubahan kode.
+#
+# Cara pakai:
+# - Setiap push ke branch main (yang menyentuh lib/, android/, assets/,
+#   ios/, atau workflow ini) akan memicu build.
+# - Bisa juga dipicu manual dari tab Actions → "Build APK" → Run workflow.
+# - Hasil APK bisa diunduh dari halaman run → bagian Artifacts
+#   (nama: warkop-doa-ambu-apk).
+#
+# Catatan: build berjalan tanpa .env (mode offline). Aplikasi sudah
+# dirancang toleran jika file .env belum ada.
+
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'lib/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'android/**'
+      - 'assets/**'
+      - 'ios/**'
+      - '.github/workflows/bangun-apk.yml'
+  workflow_dispatch:
+
+jobs:
+  bangun-apk:
+    name: Bangun APK rilis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout kode
+        uses: actions/checkout@v4
+
+      - name: Siapkan Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Siapkan Flutter 3.47.6
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.6'
+          channel: stable
+          cache: true
+
+      - name: Ambil dependensi
+        run: flutter pub get
+
+      - name: Bangun APK rilis
+        run: flutter build apk --release
+
+      - name: Unggah APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: warkop-doa-ambu-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
