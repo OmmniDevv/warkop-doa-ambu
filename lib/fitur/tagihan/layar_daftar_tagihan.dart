@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/router.dart';
 import '../../app/tema/token_tipografi.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/orb_latar.dart';
 import '../../bersama/widget/tombol_kaca.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/open_bill.dart';
@@ -62,14 +64,19 @@ class LayarDaftarTagihan extends ConsumerWidget {
     final daftarAsync = ref.watch(daftarOpenBillProvider);
 
     return Scaffold(
+      // AppBar transparan di atas OrbLatar — desain kaca menyatu.
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Kembali',
           onPressed: () {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/beranda');
+              context.go(Rute.beranda);
             }
           },
         ),
@@ -82,76 +89,80 @@ class LayarDaftarTagihan extends ConsumerWidget {
           ),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: () => _muatUlang(ref),
-                child: daftarAsync.when(
-                  data: (daftar) {
-                    if (daftar.isEmpty) {
-                      return ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.all(20),
-                        children: const [
-                          SizedBox(height: 60),
-                          KartuKaca(
-                            child: Column(
-                              children: [
-                                Icon(Icons.receipt_long,
-                                    size: 44, color: Colors.grey),
-                                SizedBox(height: 12),
-                                Text(
-                                  'Belum ada tagihan terbuka.\n'
-                                  'Buat tagihan baru untuk mulai mencatat.',
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
+      body: OrbLatar(
+        child: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () => _muatUlang(ref),
+                  child: daftarAsync.when(
+                    data: (daftar) {
+                      if (daftar.isEmpty) {
+                        return ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(20),
+                          children: const [
+                            SizedBox(height: 60),
+                            KartuKaca(
+                              tanpaBlur: true,
+                              child: Column(
+                                children: [
+                                  Icon(Icons.receipt_long,
+                                      size: 44, color: Colors.grey),
+                                  SizedBox(height: 12),
+                                  Text(
+                                    'Belum ada tagihan terbuka.\n'
+                                    'Buat tagihan baru untuk mulai mencatat.',
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        );
+                      }
+                      return ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                        itemCount: daftar.length,
+                        itemBuilder: (context, i) =>
+                            _KartuTagihan(tagihan: daftar[i]),
                       );
-                    }
-                    return ListView.builder(
+                    },
+                    loading: () => const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                    error: (_, __) => ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                      itemCount: daftar.length,
-                      itemBuilder: (context, i) =>
-                          _KartuTagihan(tagihan: daftar[i]),
-                    );
-                  },
-                  loading: () => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                  error: (_, __) => ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(20),
-                    children: const [
-                      SizedBox(height: 60),
-                      KartuKaca(
-                        child: Text(
-                          'Gagal memuat tagihan.\nTarik ke bawah untuk mencoba lagi.',
-                          textAlign: TextAlign.center,
+                      padding: const EdgeInsets.all(20),
+                      children: const [
+                        SizedBox(height: 60),
+                        KartuKaca(
+                          tanpaBlur: true,
+                          child: Text(
+                            'Gagal memuat tagihan.\nTarik ke bawah untuk mencoba lagi.',
+                            textAlign: TextAlign.center,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              child: TombolKaca(
-                label: 'Tagihan Baru',
-                ikon: Icons.add,
-                saatDitekan: () {
-                  HapticFeedback.lightImpact();
-                  context.go('/tagihan/baru');
-                },
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                child: TombolKaca(
+                  label: 'Tagihan Baru',
+                  ikon: Icons.add,
+                  saatDitekan: () {
+                    HapticFeedback.lightImpact();
+                    context.go(Rute.tagihanBaru);
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -174,64 +185,69 @@ class _KartuTagihan extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          context.go('/tagihan/${tagihan.id}');
-        },
-        child: KartuKaca(
-          pakaiBlur: false,
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      tagihan.label,
-                      style: TipografiWarkop.judulBrand.copyWith(
-                        fontSize: 18,
-                        color: aksen,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            HapticFeedback.lightImpact();
+            context.push('${Rute.tagihan}/${tagihan.id}');
+          },
+          child: KartuKaca(
+            tanpaBlur: true,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tagihan.label,
+                        style: TipografiWarkop.judulBrand.copyWith(
+                          fontSize: 18,
+                          color: aksen,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    ringkasanAsync.when(
-                      data: (ringkasan) => Text(
-                        '${ringkasan.jumlahPesanan} nota · '
-                        '${formatRupiah(ringkasan.totalBerjalan)}',
+                      const SizedBox(height: 4),
+                      ringkasanAsync.when(
+                        data: (ringkasan) => Text(
+                          '${ringkasan.jumlahPesanan} nota · '
+                          '${formatRupiah(ringkasan.totalBerjalan)}',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(color: teksSekunder),
+                        ),
+                        loading: () => Text(
+                          'Memuat…',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(color: teksSekunder),
+                        ),
+                        error: (_, __) => Text(
+                          'Ringkasan gagal dimuat',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(color: teksSekunder),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Diperbarui ${formatWaktuSingkat(tagihan.diperbaruiPada)}',
                         style: Theme.of(context)
                             .textTheme
-                            .bodyMedium
+                            .bodySmall
                             ?.copyWith(color: teksSekunder),
                       ),
-                      loading: () => Text(
-                        'Memuat…',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(color: teksSekunder),
-                      ),
-                      error: (_, __) => Text(
-                        'Ringkasan gagal dimuat',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(color: teksSekunder),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Diperbarui ${formatWaktuSingkat(tagihan.diperbaruiPada)}',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: teksSekunder),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              Icon(Icons.chevron_right, color: teksSekunder),
-            ],
+                Icon(Icons.chevron_right, color: teksSekunder),
+              ],
+            ),
           ),
         ),
       ),
