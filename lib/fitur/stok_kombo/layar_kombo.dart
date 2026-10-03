@@ -154,7 +154,7 @@ class _IsiDaftarPaket extends StatelessWidget {
       return const Padding(
         padding: EdgeInsets.all(20),
         child: KartuKaca(
-          pakaiBlur: false,
+          tanpaBlur: true,
           child: Text(
             'Belum ada paket kombo. Ketuk "Paket Baru" '
             'di bawah untuk membuat paket pertama.',
@@ -187,7 +187,7 @@ class _GalatPaket extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: KartuKaca(
-        pakaiBlur: false,
+        tanpaBlur: true,
         border: WarnaWarkop.merahMenyala.withValues(alpha: 0.45),
         child: Text('Gagal memuat paket: $pesan'),
       ),
@@ -216,7 +216,7 @@ class _BarisPaket extends StatelessWidget {
       child: Opacity(
         opacity: paket.aktif ? 1.0 : 0.6,
         child: KartuKaca(
-          pakaiBlur: false,
+          tanpaBlur: true,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
@@ -406,7 +406,7 @@ class _BarisPilihMenu extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: KartuKaca(
-        pakaiBlur: false,
+        tanpaBlur: true,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         border: jumlah > 0
             ? (Theme.of(context).brightness == Brightness.dark
