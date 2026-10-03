@@ -31,7 +31,7 @@ class LayananNotifikasi {
       const pengaturan = InitializationSettings(
         android: pengaturanAndroid,
       );
-      await _plugin.initialize(pengaturan);
+      await _plugin.initialize(settings: pengaturan);
       // Android 13+: minta izin runtime.
       await _plugin
           .resolvePlatformSpecificImplementation<
@@ -105,6 +105,6 @@ class LayananNotifikasi {
       priority: Priority.high,
     );
     const detail = NotificationDetails(android: detailAndroid);
-    await _plugin.show(id, judul, isi, detail);
+    await _plugin.show(id: id, title: judul, body: isi, notificationDetails: detail);
   }
 }

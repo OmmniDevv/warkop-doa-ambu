@@ -27,7 +27,7 @@ class _KartuFolderEkspor extends ConsumerWidget {
 
   Future<void> _pilihFolder(BuildContext context, WidgetRef ref) async {
     HapticFeedback.lightImpact();
-    final path = await FilePicker.platform.getDirectoryPath(
+    final path = await FilePicker.getDirectoryPath(
       dialogTitle: 'Pilih folder penyimpanan laporan',
     );
     if (path == null) return; // User batal.
