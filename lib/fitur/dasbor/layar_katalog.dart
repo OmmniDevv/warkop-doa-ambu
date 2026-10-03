@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +13,8 @@ import '../../data/lokal/database_lokal.dart';
 import '../../data/model/kategori_menu.dart';
 import '../../data/model/log_audit.dart';
 import '../../data/model/menu.dart';
+import '../stok_kombo/bagian_resep.dart';
+import '../stok_kombo/layanan_foto_menu.dart';
 
 /// Daftar kategori aktif, urut tampilan.
 final penyediaDaftarKategori = FutureProvider<List<KategoriMenu>>((ref) async {
@@ -151,7 +155,7 @@ class _BarisKategori extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: KartuKaca(
-        pakaiBlur: false,
+        tanpaBlur: true,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -456,10 +460,18 @@ class _BarisMenu extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: KartuKaca(
-        pakaiBlur: false,
+        tanpaBlur: true,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+          leading: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(
+              width: 52,
+              height: 52,
+              child: _MiniaturFoto(url: menu.fotoUrl),
+            ),
+          ),
           title: Text(
             menu.nama,
             style: Theme.of(context).textTheme.titleSmall,
@@ -484,6 +496,33 @@ class _BarisMenu extends StatelessWidget {
 
 // ── Form tambah/ubah menu ──────────────────────────────────────────
 
+/// Miniatur foto menu 52×52: tampilkan foto bila ada, ikon bila belum.
+class _MiniaturFoto extends StatelessWidget {
+  const _MiniaturFoto({required this.url});
+
+  final String? url;
+
+  @override
+  Widget build(BuildContext context) {
+    if (url == null || url!.isEmpty) {
+      final gelap = Theme.of(context).brightness == Brightness.dark;
+      final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+      return Container(
+        color: aksen.withValues(alpha: 0.1),
+        child: Icon(Icons.restaurant_menu_outlined, color: aksen),
+      );
+    }
+    return Image.network(
+      url!,
+      fit: BoxFit.cover,
+      errorBuilder: (ctx, _, __) => Container(
+        color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
+        child: const Icon(Icons.broken_image_outlined),
+      ),
+    );
+  }
+}
+
 /// Bottom sheet form menu: nama, kategori, harga, stok, stok minimum,
 /// dan switch tersedia.
 class _FormMenuSheet extends ConsumerStatefulWidget {
@@ -497,6 +536,7 @@ class _FormMenuSheet extends ConsumerStatefulWidget {
 }
 
 class _FormMenuSheetState extends ConsumerState<_FormMenuSheet> {
+  late final String _idMenu;
   late final TextEditingController _nama;
   late final TextEditingController _harga;
   late final TextEditingController _stok;
@@ -504,11 +544,17 @@ class _FormMenuSheetState extends ConsumerState<_FormMenuSheet> {
   String? _idKategori;
   bool _tersedia = true;
   bool _memuat = false;
+  String? _fotoUrl;
+  String? _pathFotoBaru;
+  bool _mengunggahFoto = false;
 
   @override
   void initState() {
     super.initState();
     final m = widget.menu;
+    // ID final sejak awal: dipakai BagianResep agar resep bisa ditambah
+    // bahkan sebelum menu baru disimpan.
+    _idMenu = m?.id ?? idBaru();
     _nama = TextEditingController(text: m?.nama ?? '');
     _harga =
         TextEditingController(text: m == null ? '' : '${m.hargaSatuan}');
@@ -517,6 +563,7 @@ class _FormMenuSheetState extends ConsumerState<_FormMenuSheet> {
         TextEditingController(text: m == null ? '' : '${m.stokMinimum}');
     _idKategori = m?.idKategori;
     _tersedia = m?.tersedia ?? true;
+    _fotoUrl = m?.fotoUrl;
   }
 
   @override
@@ -556,6 +603,18 @@ class _FormMenuSheetState extends ConsumerState<_FormMenuSheet> {
               adalahUbah ? 'Ubah Menu' : 'Tambah Menu',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 16),
+            _BagianFoto(
+              pathBaru: _pathFotoBaru,
+              urlLama: _fotoUrl,
+              mengunggah: _mengunggahFoto,
+              saatGanti: (path) =>
+                  setState(() => _pathFotoBaru = path),
+              saatHapus: () => setState(() {
+                _pathFotoBaru = null;
+                _fotoUrl = null;
+              }),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -639,6 +698,8 @@ class _FormMenuSheetState extends ConsumerState<_FormMenuSheet> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            BagianResep(idMenu: _idMenu),
             const SizedBox(height: 16),
             TombolKaca(
               label: adalahUbah ? 'Simpan Perubahan' : 'Tambah Menu',
@@ -678,15 +739,39 @@ class _FormMenuSheetState extends ConsumerState<_FormMenuSheet> {
     try {
       final db = DatabaseLokal.instance;
       final lama = widget.menu;
-      final id = lama?.id ?? idBaru();
+
+      // Unggah foto baru (bila ada) sebelum menyimpan menu.
+      String? fotoUrl = _fotoUrl;
+      if (_pathFotoBaru != null) {
+        setState(() => _mengunggahFoto = true);
+        try {
+          fotoUrl = await unggahFotoMenu(_pathFotoBaru!, _idMenu);
+        } catch (_) {
+          // Offline/gagal jaringan: menu tetap disimpan, foto menyusul
+          // saat pengguna mengganti foto lagi.
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Foto gagal diunggah (offline?). Menu disimpan tanpa foto baru.',
+                ),
+              ),
+            );
+          }
+        } finally {
+          if (mounted) setState(() => _mengunggahFoto = false);
+        }
+      }
+
       final menu = Menu(
-        id: id,
+        id: _idMenu,
         idKategori: _idKategori!,
         nama: nama,
         hargaSatuan: harga!,
         stok: stok,
         stokMinimum: stokMin,
         tersedia: _tersedia,
+        fotoUrl: fotoUrl,
         statusSinkron: 'tertunda',
         diperbaruiPada: DateTime.now(),
       );
@@ -699,7 +784,7 @@ class _FormMenuSheetState extends ConsumerState<_FormMenuSheet> {
         LogAudit(
           id: idBaru(),
           aksi: lama == null ? 'tambah_menu' : 'ubah_menu',
-          idReferensi: id,
+          idReferensi: _idMenu,
           dibuatPada: DateTime.now(),
         ),
       );
@@ -716,5 +801,91 @@ class _FormMenuSheetState extends ConsumerState<_FormMenuSheet> {
     } finally {
       if (mounted) setState(() => _memuat = false);
     }
+  }
+}
+
+/// Bagian foto di form menu: pratinjau + tombol kamera/galeri/hapus.
+///
+/// [pathBaru] = foto lokal yang baru dipilih (belum diunggah);
+/// [urlLama] = foto yang sudah tersimpan (URL publik).
+class _BagianFoto extends StatelessWidget {
+  const _BagianFoto({
+    required this.pathBaru,
+    required this.urlLama,
+    required this.mengunggah,
+    required this.saatGanti,
+    required this.saatHapus,
+  });
+
+  final String? pathBaru;
+  final String? urlLama;
+  final bool mengunggah;
+  final ValueChanged<String> saatGanti;
+  final VoidCallback saatHapus;
+
+  bool get _adaFoto =>
+      (pathBaru != null) || (urlLama != null && urlLama!.isNotEmpty);
+
+  @override
+  Widget build(BuildContext context) {
+    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: SizedBox(
+            width: 88,
+            height: 88,
+            child: mengunggah
+                ? Container(
+                    color: aksen.withValues(alpha: 0.1),
+                    child: const Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 3),
+                      ),
+                    ),
+                  )
+                : pathBaru != null
+                    ? Image.file(File(pathBaru!), fit: BoxFit.cover)
+                    : _MiniaturFoto(url: urlLama),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => pilihFotoMenu(
+                  context,
+                  saatDipilih: (path) {
+                    HapticFeedback.mediumImpact();
+                    saatGanti(path);
+                  },
+                ),
+                icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                label: Text(_adaFoto ? 'Ganti Foto' : 'Tambah Foto'),
+              ),
+              if (_adaFoto)
+                TextButton.icon(
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    saatHapus();
+                  },
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Hapus foto'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: WarnaWarkop.merahMenyala,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
