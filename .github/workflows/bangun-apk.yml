@@ -62,6 +62,27 @@ jobs:
             echo "secrets belum diisi — .env placeholder agar asset bundle tidak gagal"
           fi
 
+      - name: Validasi kredensial Supabase (gagal cepat kalau key salah)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "Secrets kosong — lanjut mode offline tanpa validasi."
+            exit 0
+          fi
+          KODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/")
+          echo "Supabase menjawab HTTP $KODE"
+          if [ "$KODE" = "401" ]; then
+            echo "::error::SUPABASE_ANON_KEY salah/kedaluwarsa (HTTP 401). Perbaiki secret di Settings → Secrets → Actions, lalu build ulang."
+            exit 1
+          fi
+          if [ "$KODE" != "200" ]; then
+            echo "::warning::Supabase menjawab $KODE (bukan 200) — lanjut build, tapi login mungkin bermasalah."
+          fi
+
       - name: Bangun APK rilis
         run: flutter build apk --release
 
