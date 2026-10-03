@@ -209,7 +209,7 @@ class _LayarTutupShiftState extends ConsumerState<LayarTutupShift> {
                     child: Column(
                       children: [
                         KartuKaca(
-                          pakaiBlur: false,
+                          tanpaBlur: true,
                           bayangan: false,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -247,7 +247,7 @@ class _LayarTutupShiftState extends ConsumerState<LayarTutupShift> {
                         ),
                         const SizedBox(height: 12),
                         KartuKaca(
-                          pakaiBlur: false,
+                          tanpaBlur: true,
                           bayangan: false,
                           child: Column(
                             children: [
