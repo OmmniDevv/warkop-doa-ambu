@@ -55,7 +55,7 @@ class LayarBeranda extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               KartuKaca(
-                pakaiBlur: false,
+                tanpaBlur: true,
                 child: Text(
                   'Tahap berikutnya: modul kasir (grid menu, keranjang, '
                   'open bill, shift, kasbon, kas keluar, void PIN owner, '
