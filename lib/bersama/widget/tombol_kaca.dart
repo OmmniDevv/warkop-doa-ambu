@@ -61,7 +61,7 @@ class _TombolKacaState extends State<TombolKaca>
           child: KartuKaca(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             radius: 16,
-            pakaiBlur: false,
+            tanpaBlur: true,
             border: aksen.withValues(alpha: 0.45),
             child: SizedBox(
               width: widget.lebarPenuh ? double.infinity : null,
