@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/router.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/hitung_diskon.dart';
@@ -76,10 +77,32 @@ class _LayarPosState extends ConsumerState<LayarPos> {
 
   bool get _modeKombo => _idKategoriTerpilih == _idKategoriKombo;
 
-  void _keluar() {
+  /// Keluar dari sesi kasir: dialog konfirmasi → bersihkan sesi & shift
+  /// → kembali ke layar awal.
+  Future<void> _keluar() async {
+    final yakin = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Yakin mau keluar?'),
+        content: const Text(
+          'Sesi kasir akan diakhiri dan kamu kembali ke layar awal.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Keluar'),
+          ),
+        ],
+      ),
+    );
+    if (yakin != true || !mounted) return;
     ref.read(sesiKasirProvider.notifier).ganti(null);
     ref.read(shiftAktifProvider.notifier).ganti(null);
-    context.go('/kasir');
+    if (mounted) context.go(Rute.selamatDatang);
   }
 
   void _tambahMenu(Menu menu) {
@@ -278,10 +301,36 @@ class _LayarPosState extends ConsumerState<LayarPos> {
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Keluar',
-            icon: const Icon(Icons.logout_outlined),
-            onPressed: _keluar,
+          Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () {
+                HapticFeedback.lightImpact();
+                _keluar();
+              },
+              child: Tooltip(
+                message: 'Keluar dari sesi kasir',
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: WarnaWarkop.merahMenyala
+                        .withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: WarnaWarkop.merahMenyala
+                          .withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.logout_outlined,
+                    color: WarnaWarkop.merahMenyala,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),

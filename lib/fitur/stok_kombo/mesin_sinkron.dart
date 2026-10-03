@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/lokal/database_lokal.dart';
@@ -11,9 +12,9 @@ class HasilSinkron {
   final int gagal;
 }
 
-/// Mesin sinkronisasi upload-only: mengunggah semua baris lokal berstatus
-/// 'tertunda' ke Supabase. Tidak pernah menghapus data lokal dan tidak
-/// pernah melempar exception.
+/// Mesin sinkronisasi: mengunggah baris lokal 'tertunda' ke Supabase
+/// DAN mengunduh data master (akun kasir) dari Supabase ke lokal.
+/// Tidak pernah menghapus data lokal dan tidak pernah melempar exception.
 class MesinSinkron {
   /// Kolom boolean per tabel: SQLite menyimpan 0/1, Supabase butuh
   /// true/false. Tabel di luar daftar ini diunggah apa adanya.
@@ -101,9 +102,69 @@ class MesinSinkron {
 
       await _sinkronkanLogAudit(client);
 
+      // Unduh akun kasir dari server (agar akun yang dibuat owner di
+      // perangkat lain / sebelum reinstall tetap muncul).
+      await _unduhAkun(client);
+
       return HasilSinkron(berhasil: berhasil, gagal: gagal);
     } catch (_) {
       return const HasilSinkron();
+    }
+  }
+
+  /// Mengunduh daftar akun dari Supabase ke SQLite lokal.
+  ///
+  /// Dipakai agar akun kasir yang dibuat owner tetap muncul setelah
+  /// reinstall / di perangkat lain. Baris lokal berstatus 'tertunda'
+  /// (perubahan belum terunggah) TIDAK ditimpa — perubahan lokal menang.
+  /// Tidak pernah throw.
+  Future<void> _unduhAkun(SupabaseClient client) async {
+    try {
+      final db = DatabaseLokal.instance;
+      final remote = await client
+          .from('akun')
+          .select()
+          .eq('apakah_dihapus', false);
+
+      final dbBuka = await db.db;
+      for (final baris in (remote as List)) {
+        final peta = Map<String, Object?>.from(baris as Map);
+        final id = peta['id'] as String?;
+        if (id == null || id.isEmpty) continue;
+
+        // Jangan timpa perubahan lokal yang belum terunggah.
+        final lokal = await dbBuka.query(
+          'akun',
+          where: 'id = ?',
+          whereArgs: [id],
+          limit: 1,
+        );
+        if (lokal.isNotEmpty &&
+            lokal.first['status_sinkron'] == 'tertunda') {
+          continue;
+        }
+
+        // Konversi boolean Supabase (true/false) ke SQLite (1/0).
+        final barisLokal = <String, Object?>{
+          'id': id,
+          'nama': peta['nama'],
+          'pin_hash': peta['pin_hash'],
+          'peran': peta['peran'],
+          'aktif': (peta['aktif'] as bool? ?? true) ? 1 : 0,
+          'status_sinkron': 'tersinkron',
+          'diperbarui_pada': peta['diperbarui_pada'] ??
+              peta['diperbaruiPada'] ??
+              DateTime.now().toUtc().toIso8601String(),
+          'apakah_dihapus': (peta['apakah_dihapus'] as bool? ?? false) ? 1 : 0,
+        };
+        await dbBuka.insert(
+          'akun',
+          barisLokal,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    } catch (_) {
+      // Lewati diam-diam — dicoba lagi pada putaran berikutnya.
     }
   }
 

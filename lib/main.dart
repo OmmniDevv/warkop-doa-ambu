@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/penyedia.dart';
-import 'app/router.dart';
 import 'app/tema/tema_app.dart';
 import 'fitur/stok_kombo/penyedia_sinkron.dart';
 
@@ -60,6 +59,10 @@ class AplikasiWarkop extends ConsumerWidget {
     final gelap = ref.watch(penyediaModeGelap);
     // Hidupkan sinkronisasi otomatis selama aplikasi berjalan.
     ref.watch(pemicuSinkronOtomatis);
+    // Router diambil dari provider (satu instance) — JANGAN panggil
+    // bangunRouter() di sini, karena rebuild saat ganti tema akan
+    // me-reset navigasi dan terlihat seperti logout.
+    final router = ref.watch(penyediaRouter);
 
     return MaterialApp.router(
       title: 'Warkop Doa Ambu',
@@ -67,7 +70,7 @@ class AplikasiWarkop extends ConsumerWidget {
       theme: bangunTema(gelap: false),
       darkTheme: bangunTema(gelap: true),
       themeMode: gelap ? ThemeMode.dark : ThemeMode.light,
-      routerConfig: bangunRouter(),
+      routerConfig: router,
       builder: (context, child) {
         // Banner kecil saat Supabase belum dikonfigurasi.
         if (supabaseSiap || child == null) return child!;
