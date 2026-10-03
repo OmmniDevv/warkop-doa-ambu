@@ -123,10 +123,10 @@ class _LayarSetupPinOwnerState extends ConsumerState<LayarSetupPinOwner> {
       setState(() => _memuat = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Profil owner tidak ditemukan. Daftar ulang ya.'),
+          content: Text('Profil owner tidak ditemukan. Masuk ulang ya.'),
         ),
       );
-      context.go(Rute.daftar);
+      context.go(Rute.masuk);
       return;
     }
 
@@ -168,7 +168,7 @@ class _LayarSetupPinOwnerState extends ConsumerState<LayarSetupPinOwner> {
 
   void _selesai() {
     HapticFeedback.lightImpact();
-    context.go(Rute.beranda);
+    context.go(Rute.dasbor);
   }
 
   @override

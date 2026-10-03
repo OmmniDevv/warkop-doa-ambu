@@ -95,7 +95,7 @@ class LayarDasbor extends ConsumerWidget {
   Future<void> _keluar(BuildContext context, WidgetRef ref) async {
     await ref.read(penyediaServiceAuthOwner).keluar();
     segarkanProfil(ref);
-    if (context.mounted) context.go(Rute.daftar);
+    if (context.mounted) context.go(Rute.masuk);
   }
 }
 
@@ -124,15 +124,15 @@ class _PesanProfilKosong extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Daftar atau masuk dulu ya biar dasbor bisa dibuka.',
+            'Masuk dulu ya biar dasbor bisa dibuka.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 24),
           TombolKaca(
-            label: 'Ke Halaman Daftar',
+            label: 'Ke Halaman Masuk',
             ikon: Icons.login_outlined,
-            saatDitekan: () => context.go(Rute.daftar),
+            saatDitekan: () => context.go(Rute.masuk),
           ),
         ],
       ),

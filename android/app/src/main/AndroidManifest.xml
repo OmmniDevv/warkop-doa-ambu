@@ -4,7 +4,7 @@
     <!-- Kamera opsional: fitur foto bukti disembunyikan bila tak ada kamera. -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <application
-        android:label="warkop_doa_ambu"
+        android:label="Warkop Doa Ambu"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

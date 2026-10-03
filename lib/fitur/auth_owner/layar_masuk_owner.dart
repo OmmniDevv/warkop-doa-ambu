@@ -72,7 +72,7 @@ class _LayarMasukOwnerState extends ConsumerState<LayarMasukOwner> {
     if (profil == null || profil.hashPinMaster.isEmpty) {
       context.go(Rute.setupPin);
     } else {
-      context.go(Rute.beranda);
+      context.go(Rute.dasbor);
     }
   }
 
@@ -83,10 +83,6 @@ class _LayarMasukOwnerState extends ConsumerState<LayarMasukOwner> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_outlined),
-          onPressed: () => context.go(Rute.daftar),
-        ),
         title: const Text('MASUK OWNER'),
       ),
       body: SafeArea(

@@ -30,7 +30,7 @@ Supabase saat online.
 
 ## Status Pengembangan
 
-- [x] **Auth owner** — daftar/masuk (Supabase Auth), Master PIN 6 digit +
+- [x] **Auth owner** — masuk (Supabase Auth; akun dibuat langsung di database), Master PIN 6 digit +
       biometrik, profil tersimpan di SQLite.
 - [x] **Data layer** — 12 model Bahasa Indonesia + SQLite operasional
       (`status_sinkron`, `diperbarui_pada`, `apakah_dihapus`) + seed kategori/menu.

@@ -7,27 +7,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/pemilik.dart';
 
-/// Hasil upaya pendaftaran akun owner.
-enum HasilDaftar {
-  /// Akun baru berhasil dibuat di Supabase + profil tersimpan lokal.
-  berhasil,
-
-  /// Email sudah terdaftar — arahkan ke layar masuk.
-  sudahTerdaftar,
-
-  /// Gagal karena alasan lain (jaringan, validasi server, dll).
-  gagal,
-}
-
-/// Service pendaftaran & keamanan akun Owner.
+/// Service keamanan & sesi akun Owner.
 ///
 /// Tanggung jawab:
-/// - Registrasi ke Supabase Auth ([daftar]) dengan penanganan cerdas
-///   untuk email yang sudah terdaftar.
 /// - Masuk + unduh profil ke SQLite lokal ([masuk]).
 /// - Hashing Master PIN 6-digit dengan SHA-256 + salt + pepper
 ///   ([buatHashPin], [verifikasiPinMaster]).
 /// - Otorisasi biometrik via `local_auth` ([aktifkanBiometrik]).
+///
+/// Catatan: pendaftaran akun owner dilakukan langsung di database oleh
+/// admin (tidak ada alur registrasi di aplikasi).
 ///
 /// Catatan keamanan: PIN tidak pernah disimpan sebagai teks polos —
 /// yang tersimpan hanya hash SHA-256 dari `pepper + idPemilik + pin`.
@@ -48,53 +37,7 @@ class ServiceAuthOwner {
   /// Bukan rahasia mutlak, tapi mempersulit serangan rainbow table generik.
   static const _pepper = 'wda::doa-ambu::pin-master';
 
-  // ── Pendaftaran & masuk ──────────────────────────────────────────
-
-  /// Daftarkan akun owner baru ke Supabase Auth.
-  ///
-  /// Mengembalikan [HasilDaftar.sudahTerdaftar] jika email sudah dipakai,
-  /// agar UI bisa mengarahkan ke layar masuk alih-alih menampilkan error.
-  Future<HasilDaftar> daftar({
-    required String namaPemilik,
-    required String namaWarkop,
-    required String email,
-    required String kataSandi,
-    String? nomorKontak,
-  }) async {
-    try {
-      final respons = await _klien.auth.signUp(
-        email: email.trim(),
-        password: kataSandi,
-        data: {
-          'nama_pemilik': namaPemilik.trim(),
-          'nama_warkop': namaWarkop.trim(),
-        },
-      );
-
-      final pengguna = respons.user;
-      if (pengguna == null) return HasilDaftar.gagal;
-
-      await _simpanProfil(
-        id: pengguna.id,
-        namaPemilik: namaPemilik.trim(),
-        namaWarkop: namaWarkop.trim(),
-        email: email.trim(),
-        nomorKontak: nomorKontak?.trim(),
-      );
-      return HasilDaftar.berhasil;
-    } on AuthException catch (e) {
-      final pesan = e.message.toLowerCase();
-      final kode = e.code?.toLowerCase() ?? '';
-      if (pesan.contains('already registered') ||
-          pesan.contains('already exists') ||
-          kode.contains('user_already_exists')) {
-        return HasilDaftar.sudahTerdaftar;
-      }
-      return HasilDaftar.gagal;
-    } catch (_) {
-      return HasilDaftar.gagal;
-    }
-  }
+  // ── Masuk ────────────────────────────────────────────────────
 
   /// Masuk dengan email + kata sandi, lalu unduh profil ke SQLite lokal.
   ///
