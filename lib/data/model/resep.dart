@@ -72,4 +72,3 @@ class ResepLengkap {
   final String namaBahan;
   final String satuan;
 }
-
