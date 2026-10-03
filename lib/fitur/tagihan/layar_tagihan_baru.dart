@@ -154,7 +154,7 @@ class _LayarTagihanBaruState extends ConsumerState<LayarTagihanBaru> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 4),
                       radius: 16,
-                      pakaiBlur: false,
+                      tanpaBlur: true,
                       child: TextField(
                         controller: _kontrolNama,
                         textInputAction: TextInputAction.done,
@@ -183,7 +183,7 @@ class _LayarTagihanBaruState extends ConsumerState<LayarTagihanBaru> {
                     ),
                     const SizedBox(height: 24),
                     KartuKaca(
-                      pakaiBlur: false,
+                      tanpaBlur: true,
                       child: Row(
                         children: [
                           Icon(Icons.receipt_long, color: aksen, size: 28),
