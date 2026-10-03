@@ -49,6 +49,19 @@ jobs:
       - name: Ambil dependensi
         run: flutter pub get
 
+      - name: Tulis .env (wajib ada untuk asset bundle)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
+            printf 'SUPABASE_URL=%s\nSUPABASE_ANON_KEY=%s\n' "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > .env
+            echo "mode online — .env ditulis dari secrets"
+          else
+            printf '# mode offline — diisi dari GitHub Secrets saat build\n' > .env
+            echo "secrets belum diisi — .env placeholder agar asset bundle tidak gagal"
+          fi
+
       - name: Bangun APK rilis
         run: flutter build apk --release
 
