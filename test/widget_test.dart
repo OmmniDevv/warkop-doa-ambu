@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:warkop_doa_ambu/main.dart';
 
 void main() {
-  testWidgets('Aplikasi menampilkan layar masuk owner', (tester) async {
+  testWidgets('Aplikasi menampilkan layar selamat datang', (tester) async {
     await tester.pumpWidget(
       const ProviderScope(
         child: AplikasiWarkop(supabaseSiap: false),
@@ -11,7 +11,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('MASUK OWNER'), findsOneWidget);
-    expect(find.text('Selamat datang kembali'), findsOneWidget);
+    expect(find.text('Saya Owner'), findsOneWidget);
+    expect(find.text('Saya Kasir'), findsOneWidget);
   });
 }

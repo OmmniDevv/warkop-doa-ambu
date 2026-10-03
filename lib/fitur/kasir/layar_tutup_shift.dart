@@ -10,6 +10,7 @@ import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/id_unik.dart';
 import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/tombol_tema.dart';
 import '../../bersama/widget/keypad_angka.dart';
 import '../../bersama/widget/tombol_kaca.dart';
 import '../../data/model/akun.dart';
@@ -132,7 +133,7 @@ class _LayarTutupShiftState extends ConsumerState<LayarTutupShift> {
 
     if (shift == null || kasir == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('TUTUP SHIFT')),
+        appBar: AppBar(title: const Text('TUTUP SHIFT'), actions: const [TombolTema()]),
         body: SafeArea(
           child: Center(
             child: Padding(
@@ -172,7 +173,7 @@ class _LayarTutupShiftState extends ConsumerState<LayarTutupShift> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('TUTUP SHIFT')),
+      appBar: AppBar(title: const Text('TUTUP SHIFT'), actions: const [TombolTema()]),
       body: SafeArea(
         child: FutureBuilder<_RingkasanShift>(
           future: _muatRingkasan(shift),

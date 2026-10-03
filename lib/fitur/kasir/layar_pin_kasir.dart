@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/penyedia.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/tombol_tema.dart';
 import '../../bersama/widget/keypad_angka.dart';
 import '../../bersama/widget/pembungkus_goyang.dart';
 import '../../bersama/widget/titik_pin.dart';
@@ -105,7 +106,7 @@ class _LayarPinKasirState extends ConsumerState<LayarPinKasir> {
     final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('PIN KASIR')),
+      appBar: AppBar(title: const Text('PIN KASIR'), actions: const [TombolTema()]),
       body: SafeArea(
         child: FutureBuilder<Akun?>(
           future: ref.read(penyediaDatabaseLokal).ambilAkun(widget.idAkun),

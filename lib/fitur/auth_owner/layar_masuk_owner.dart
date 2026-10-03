@@ -9,6 +9,7 @@ import '../../app/tema/token_warna.dart';
 import '../../bersama/widget/kartu_kaca.dart';
 import '../../bersama/widget/pembungkus_goyang.dart';
 import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/tombol_tema.dart';
 
 /// Layar masuk owner — untuk email yang sudah terdaftar.
 ///
@@ -84,6 +85,7 @@ class _LayarMasukOwnerState extends ConsumerState<LayarMasukOwner> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('MASUK OWNER'),
+        actions: const [TombolTema()],
       ),
       body: SafeArea(
         child: SingleChildScrollView(

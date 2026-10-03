@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../fitur/auth_owner/layar_beranda.dart';
 import '../fitur/auth_owner/layar_masuk_owner.dart';
 import '../fitur/auth_owner/layar_setup_pin_owner.dart';
+import '../fitur/selamat_datang/layar_selamat_datang.dart';
 import '../fitur/bayar/rute_bayar.dart';
 import '../fitur/dasbor/rute_dasbor.dart';
 import '../fitur/kasir/rute_kasir.dart';
@@ -13,6 +14,7 @@ import '../fitur/void_kasbon/rute_void_kasbon.dart';
 
 /// Nama route terpusat — jangan hardcode string path di widget.
 abstract final class Rute {
+  static const selamatDatang = '/';
   static const masuk = '/masuk';
   static const setupPin = '/setup-pin';
   static const beranda = '/beranda';
@@ -52,8 +54,12 @@ abstract final class Rute {
 /// alur pendaftaran tetap mulus saat offline.
 GoRouter bangunRouter() {
   return GoRouter(
-    initialLocation: Rute.masuk,
+    initialLocation: Rute.selamatDatang,
     routes: [
+      GoRoute(
+        path: Rute.selamatDatang,
+        builder: (context, state) => const LayarSelamatDatang(),
+      ),
       GoRoute(
         path: Rute.masuk,
         builder: (context, state) => const LayarMasukOwner(),

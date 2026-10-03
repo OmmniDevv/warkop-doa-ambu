@@ -8,6 +8,7 @@ import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/id_unik.dart';
 import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/tombol_tema.dart';
 import '../../bersama/widget/keypad_angka.dart';
 import '../../bersama/widget/tombol_kaca.dart';
 import '../../data/model/akun.dart';
@@ -89,7 +90,7 @@ class _LayarBukaShiftState extends ConsumerState<LayarBukaShift> {
 
     if (kasir == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('BUKA SHIFT')),
+        appBar: AppBar(title: const Text('BUKA SHIFT'), actions: const [TombolTema()]),
         body: SafeArea(
           child: Center(
             child: Padding(
@@ -129,7 +130,7 @@ class _LayarBukaShiftState extends ConsumerState<LayarBukaShift> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('BUKA SHIFT')),
+      appBar: AppBar(title: const Text('BUKA SHIFT'), actions: const [TombolTema()]),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

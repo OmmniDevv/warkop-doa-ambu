@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/penyedia.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/tombol_tema.dart';
 import '../../data/model/akun.dart';
 
 /// Layar pemilihan kasir — gerbang masuk sebelum PIN.
@@ -30,7 +31,7 @@ class LayarPilihKasir extends ConsumerWidget {
     final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('PILIH KASIR')),
+      appBar: AppBar(title: const Text('PILIH KASIR'), actions: const [TombolTema()]),
       body: SafeArea(
         child: FutureBuilder<List<Akun>>(
           future: _muatKasir(ref),
