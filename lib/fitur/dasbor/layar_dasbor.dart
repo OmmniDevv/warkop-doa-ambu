@@ -8,54 +8,101 @@ import '../../app/router.dart';
 import '../../app/tema/token_tipografi.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
+import '../../bersama/widget/cincin_data.dart';
 import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/orb_latar.dart';
 import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/tombol_tema.dart';
 import '../../data/lokal/database_lokal.dart';
+import '../../data/model/bahan.dart';
 import '../printer/layanan_printer.dart';
 import 'util_tanggal.dart';
 
-/// Ringkasan angka dasbor owner untuk hari ini.
+/// Ringkasan angka dasbor owner.
+///
+/// Batas periode dihitung dari waktu lokal perangkat:
+/// hari = 00:00–24:00, minggu = Senin–Minggu, bulan = kalender berjalan.
 class RingkasanDasbor {
   const RingkasanDasbor({
     required this.omzetHariIni,
     required this.jumlahPesananHariIni,
     required this.kasbonAktif,
     required this.stokMenipis,
+    required this.omzetKemarin,
+    required this.omzetMingguIni,
+    required this.jumlahPesananMingguIni,
+    required this.omzetBulanIni,
+    required this.jumlahPesananBulanIni,
+    required this.bahanMenipis,
   });
 
   final int omzetHariIni;
   final int jumlahPesananHariIni;
   final int kasbonAktif;
   final int stokMenipis;
+
+  final int omzetKemarin;
+  final int omzetMingguIni;
+  final int jumlahPesananMingguIni;
+  final int omzetBulanIni;
+  final int jumlahPesananBulanIni;
+  final List<Bahan> bahanMenipis;
+
+  /// Rasio omzet hari ini vs kemarin untuk [CincinData] (0.0–1.0).
+  double get rasioVsKemarin {
+    if (omzetKemarin <= 0) return omzetHariIni > 0 ? 1.0 : 0.0;
+    return (omzetHariIni / omzetKemarin).clamp(0.0, 1.0);
+  }
 }
 
 /// Hitung ringkasan dari database lokal (offline-first).
 final penyediaRingkasanDasbor = FutureProvider<RingkasanDasbor>((ref) async {
   final db = DatabaseLokal.instance;
   final sekarang = DateTime.now();
+  final awalHari = DateTime(sekarang.year, sekarang.month, sekarang.day);
+  final awalBesok = awalHari.add(const Duration(days: 1));
+  final awalKemarin = awalHari.subtract(const Duration(days: 1));
+  final awalMinggu = awalHari.subtract(Duration(days: awalHari.weekday - 1));
+  final awalBulan = DateTime(sekarang.year, sekarang.month);
+
+  bool dalamRentang(DateTime waktu, DateTime awal, DateTime akhir) {
+    final lokal = waktu.toLocal();
+    return !lokal.isBefore(awal) && lokal.isBefore(akhir);
+  }
 
   final pesanan = await db.daftarPesanan();
-  final pesananHariIni = pesanan
-      .where((p) => apakahHariYangSama(p.diperbaruiPada, sekarang))
-      .toList();
-  final omzet = pesananHariIni
-      .where((p) => p.status == 'lunas')
+  int omzet(DateTime awal, DateTime akhir) => pesanan
+      .where((p) =>
+          p.status == 'lunas' && dalamRentang(p.diperbaruiPada, awal, akhir))
       .fold<int>(0, (jumlah, p) => jumlah + p.total);
+  int hitungPesanan(DateTime awal, DateTime akhir) => pesanan
+      .where((p) => dalamRentang(p.diperbaruiPada, awal, akhir))
+      .length;
 
   final menu = await db.daftarMenu();
   final menipis = menu.where((m) => m.stok <= m.stokMinimum).length;
 
   final kasbon = await db.daftarKasbon(status: 'belum_lunas');
 
+  final bahan = await db.daftarBahan();
+  final bahanMenipis = bahan.where((b) => b.menipis).toList();
+
   return RingkasanDasbor(
-    omzetHariIni: omzet,
-    jumlahPesananHariIni: pesananHariIni.length,
+    omzetHariIni: omzet(awalHari, awalBesok),
+    jumlahPesananHariIni: hitungPesanan(awalHari, awalBesok),
     kasbonAktif: kasbon.length,
     stokMenipis: menipis,
+    omzetKemarin: omzet(awalKemarin, awalHari),
+    omzetMingguIni: omzet(awalMinggu, awalBesok),
+    jumlahPesananMingguIni: hitungPesanan(awalMinggu, awalBesok),
+    omzetBulanIni: omzet(awalBulan, awalBesok),
+    jumlahPesananBulanIni: hitungPesanan(awalBulan, awalBesok),
+    bahanMenipis: bahanMenipis,
   );
 });
 
-/// Layar dasbor owner: ringkasan harian + menu modul + uji printer.
+/// Layar dasbor owner: sapaan, omzet hero, statistik periode,
+/// peringatan bahan, dan aksi cepat.
 ///
 /// Guard: bila belum ada profil pemilik ([penyediaProfilPemilik] null),
 /// tampilkan pesan ramah — JANGAN crash.
@@ -66,36 +113,22 @@ class LayarDasbor extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profilAsync = ref.watch(penyediaProfilPemilik);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('DASBOR OWNER'),
-        actions: [
-          IconButton(
-            tooltip: 'Keluar',
-            icon: const Icon(Icons.logout_outlined),
-            onPressed: () => _keluar(context, ref),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: profilAsync.when(
-          data: (profil) {
-            if (profil == null) {
-              return const _PesanProfilKosong();
-            }
-            return _IsiDasbor(namaWarkop: profil.namaWarkop);
-          },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Gagal memuat profil: $e')),
-        ),
-      ),
+    return profilAsync.when(
+      data: (profil) {
+        if (profil == null) {
+          return const Scaffold(
+            body: OrbLatar(
+              child: SafeArea(child: _PesanProfilKosong()),
+            ),
+          );
+        }
+        return _IsiDasbor(namaWarkop: profil.namaWarkop);
+      },
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (e, _) =>
+          Scaffold(body: Center(child: Text('Gagal memuat profil: $e'))),
     );
-  }
-
-  Future<void> _keluar(BuildContext context, WidgetRef ref) async {
-    await ref.read(penyediaServiceAuthOwner).keluar();
-    segarkanProfil(ref);
-    if (context.mounted) context.go(Rute.masuk);
   }
 }
 
@@ -105,6 +138,7 @@ class _PesanProfilKosong extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final gelap = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -114,7 +148,7 @@ class _PesanProfilKosong extends StatelessWidget {
           Icon(
             Icons.storefront_outlined,
             size: 72,
-            color: Theme.of(context).colorScheme.outline,
+            color: gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang,
           ),
           const SizedBox(height: 16),
           Text(
@@ -149,104 +183,704 @@ class _IsiDasbor extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ringkasanAsync = ref.watch(penyediaRingkasanDasbor);
 
-    return RefreshIndicator(
-      onRefresh: () async {
-        ref.invalidate(penyediaRingkasanDasbor);
-        await ref.read(penyediaRingkasanDasbor.future);
-      },
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              namaWarkop,
+    return Scaffold(
+      body: OrbLatar(
+        child: SafeArea(
+          child: RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(penyediaRingkasanDasbor);
+              await ref.read(penyediaRingkasanDasbor.future);
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _KepalaDasbor(namaWarkop: namaWarkop),
+                  const SizedBox(height: 20),
+                  ringkasanAsync.when(
+                    data: (r) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _KartuOmzetHero(ringkasan: r),
+                        const SizedBox(height: 12),
+                        _BarisStatistik(ringkasan: r),
+                        if (r.bahanMenipis.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          _PeringatanBahan(ringkasan: r),
+                        ],
+                        if (r.kasbonAktif > 0 ||
+                            (r.bahanMenipis.isEmpty && r.stokMenipis > 0)) ...[
+                          const SizedBox(height: 12),
+                          _InfoPerhatian(ringkasan: r),
+                        ],
+                      ],
+                    ),
+                    loading: () => const Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                    error: (e, _) => Text('Gagal memuat ringkasan: $e'),
+                  ),
+                  const SizedBox(height: 20),
+                  const _JudulBagian('Aksi Cepat'),
+                  const _AksiCepat(),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Kepala: sapaan waktu + nama warkop + tanggal + toggle tema.
+class _KepalaDasbor extends StatelessWidget {
+  const _KepalaDasbor({required this.namaWarkop});
+
+  final String namaWarkop;
+
+  String _sapaan() {
+    final jam = DateTime.now().hour;
+    if (jam >= 5 && jam < 11) return 'Selamat pagi';
+    if (jam >= 11 && jam < 15) return 'Selamat siang';
+    if (jam >= 15 && jam < 19) return 'Selamat sore';
+    return 'Selamat malam';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final teksRedup = gelap
+        ? WarnaWarkop.teksSekunderGelap
+        : WarnaWarkop.teksSekunderTerang;
+    final teksUtama =
+        gelap ? WarnaWarkop.teksGelap : WarnaWarkop.teksTerang;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _sapaan(),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: teksRedup),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                namaWarkop,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.headlineSmall?.merge(
+                      TipografiWarkop.judulBrand.copyWith(color: teksUtama),
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                formatTanggalPendek(DateTime.now()),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: teksRedup),
+              ),
+            ],
+          ),
+        ),
+        const TombolTema(),
+      ],
+    );
+  }
+}
+
+/// Kartu hero: cincin omzet hari ini + perbandingan vs kemarin.
+class _KartuOmzetHero extends StatelessWidget {
+  const _KartuOmzetHero({required this.ringkasan});
+
+  final RingkasanDasbor ringkasan;
+
+  @override
+  Widget build(BuildContext context) {
+    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final teksRedup = gelap
+        ? WarnaWarkop.teksSekunderGelap
+        : WarnaWarkop.teksSekunderTerang;
+
+    return KartuKaca(
+      tingkat: TingkatKaca.kuat,
+      child: Row(
+        children: [
+          CincinData(
+            persen: ringkasan.rasioVsKemarin,
+            diameter: 124,
+            tebalGaris: 11,
+            labelTengah: formatRupiahRingkas(ringkasan.omzetHariIni),
+            sublabel: 'hari ini',
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'OMZET HARI INI',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: aksen,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${ringkasan.jumlahPesananHariIni} transaksi',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 10),
+                _ChipDelta(ringkasan: ringkasan),
+                const SizedBox(height: 6),
+                Text(
+                  'vs kemarin',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: teksRedup),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pil perbandingan omzet vs kemarin.
+class _ChipDelta extends StatelessWidget {
+  const _ChipDelta({required this.ringkasan});
+
+  final RingkasanDasbor ringkasan;
+
+  @override
+  Widget build(BuildContext context) {
+    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final r = ringkasan;
+
+    late final String teks;
+    late final Color warna;
+    late final IconData ikon;
+    if (r.omzetKemarin <= 0) {
+      if (r.omzetHariIni <= 0) {
+        teks = 'Belum ada penjualan';
+        warna = gelap
+            ? WarnaWarkop.teksSekunderGelap
+            : WarnaWarkop.teksSekunderTerang;
+        ikon = Icons.remove_rounded;
+      } else {
+        teks = 'Mulai tercatat hari ini';
+        warna = WarnaWarkop.hijauAman;
+        ikon = Icons.spa_outlined;
+      }
+    } else {
+      final persen =
+          ((r.omzetHariIni - r.omzetKemarin) / r.omzetKemarin * 100).round();
+      if (persen > 0) {
+        teks = '+$persen%';
+        warna = WarnaWarkop.hijauAman;
+        ikon = Icons.trending_up_rounded;
+      } else if (persen < 0) {
+        teks = '$persen%';
+        warna = WarnaWarkop.merahMenyala;
+        ikon = Icons.trending_down_rounded;
+      } else {
+        teks = '±0%';
+        warna = gelap
+            ? WarnaWarkop.teksSekunderGelap
+            : WarnaWarkop.teksSekunderTerang;
+        ikon = Icons.trending_flat_rounded;
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: warna.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(ikon, size: 14, color: warna),
+          const SizedBox(width: 6),
+          Text(
+            teks,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: warna,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tiga kartu statistik periode: hari / minggu / bulan ini.
+class _BarisStatistik extends StatelessWidget {
+  const _BarisStatistik({required this.ringkasan});
+
+  final RingkasanDasbor ringkasan;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _KartuPeriode(
+            judul: 'HARI INI',
+            omzet: ringkasan.omzetHariIni,
+            transaksi: ringkasan.jumlahPesananHariIni,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _KartuPeriode(
+            judul: 'MINGGU INI',
+            omzet: ringkasan.omzetMingguIni,
+            transaksi: ringkasan.jumlahPesananMingguIni,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _KartuPeriode(
+            judul: 'BULAN INI',
+            omzet: ringkasan.omzetBulanIni,
+            transaksi: ringkasan.jumlahPesananBulanIni,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _KartuPeriode extends StatelessWidget {
+  const _KartuPeriode({
+    required this.judul,
+    required this.omzet,
+    required this.transaksi,
+  });
+
+  final String judul;
+  final int omzet;
+  final int transaksi;
+
+  @override
+  Widget build(BuildContext context) {
+    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final teksRedup = gelap
+        ? WarnaWarkop.teksSekunderGelap
+        : WarnaWarkop.teksSekunderTerang;
+
+    return KartuKaca(
+      tanpaBlur: true,
+      tingkat: TingkatKaca.ringan,
+      radius: 16,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            judul,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: aksen,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                ),
+          ),
+          const SizedBox(height: 8),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              formatRupiahRingkas(omzet),
               style: Theme.of(context)
                   .textTheme
-                  .headlineSmall
-                  ?.merge(TipografiWarkop.judulBrand),
+                  .titleMedium
+                  ?.merge(TipografiWarkop.nominal),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Ringkasan ${formatTanggalPendek(DateTime.now())}',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            const _JudulBagian('Ringkasan Hari Ini'),
-            ringkasanAsync.when(
-              data: (r) => GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.45,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$transaksi transaksi',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: teksRedup),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Peringatan bahan baku yang menipis — dari tabel bahan lokal.
+class _PeringatanBahan extends StatelessWidget {
+  const _PeringatanBahan({required this.ringkasan});
+
+  final RingkasanDasbor ringkasan;
+
+  String _formatStok(double nilai) {
+    final teks = nilai.toStringAsFixed(1).replaceAll('.', ',');
+    return teks.endsWith(',0') ? teks.substring(0, teks.length - 2) : teks;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bahan = ringkasan.bahanMenipis;
+
+    return KartuKaca(
+      tanpaBlur: true,
+      tingkat: TingkatKaca.ringan,
+      radius: 16,
+      border: WarnaWarkop.emas.withValues(alpha: 0.45),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: WarnaWarkop.emas,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Bahan menipis',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: WarnaWarkop.emas.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${bahan.length}',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: WarnaWarkop.emas,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          for (final b in bahan.take(4))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
                 children: [
-                  _KartuStatistik(
-                    judul: 'Omzet Hari Ini',
-                    nilai: formatRupiah(r.omzetHariIni),
-                    ikon: Icons.payments_outlined,
-                    warna: WarnaWarkop.emas,
+                  Expanded(
+                    child: Text(
+                      b.nama,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
                   ),
-                  _KartuStatistik(
-                    judul: 'Pesanan Hari Ini',
-                    nilai: '${r.jumlahPesananHariIni}',
-                    ikon: Icons.receipt_long_outlined,
-                    warna: Theme.of(context).colorScheme.primary,
-                  ),
-                  _KartuStatistik(
-                    judul: 'Kasbon Aktif',
-                    nilai: '${r.kasbonAktif}',
-                    ikon: Icons.handshake_outlined,
-                    warna: WarnaWarkop.kuningAntre,
-                  ),
-                  _KartuStatistik(
-                    judul: 'Stok Menipis',
-                    nilai: '${r.stokMenipis}',
-                    ikon: Icons.warning_amber_outlined,
-                    warna: WarnaWarkop.merahMenyala,
+                  Text(
+                    'sisa ${_formatStok(b.stok)} ${b.satuan}',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.merge(TipografiWarkop.nominal)
+                        .copyWith(color: WarnaWarkop.emas),
                   ),
                 ],
               ),
-              loading: () => const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
+            ),
+          if (bahan.length > 4)
+            Text(
+              '+${bahan.length - 4} bahan lainnya',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                context.go(Rute.stok);
+              },
+              icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+              label: const Text('Cek Stok'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Info singkat yang perlu perhatian: kasbon & menu hampir habis.
+class _InfoPerhatian extends StatelessWidget {
+  const _InfoPerhatian({required this.ringkasan});
+
+  final RingkasanDasbor ringkasan;
+
+  @override
+  Widget build(BuildContext context) {
+    return KartuKaca(
+      tanpaBlur: true,
+      tingkat: TingkatKaca.ringan,
+      radius: 16,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        children: [
+          if (ringkasan.kasbonAktif > 0)
+            _BarisInfo(
+              ikon: Icons.handshake_outlined,
+              warna: WarnaWarkop.kuningAntre,
+              teks: '${ringkasan.kasbonAktif} kasbon belum lunas',
+              saatDitekan: () => context.push(Rute.kasbon),
+            ),
+          if (ringkasan.bahanMenipis.isEmpty && ringkasan.stokMenipis > 0)
+            _BarisInfo(
+              ikon: Icons.inventory_2_outlined,
+              warna: WarnaWarkop.merahMenyala,
+              teks: '${ringkasan.stokMenipis} menu hampir habis',
+              saatDitekan: () => context.go(Rute.stok),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BarisInfo extends StatelessWidget {
+  const _BarisInfo({
+    required this.ikon,
+    required this.warna,
+    required this.teks,
+    required this.saatDitekan,
+  });
+
+  final IconData ikon;
+  final Color warna;
+  final String teks;
+  final VoidCallback saatDitekan;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          saatDitekan();
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: [
+              Icon(ikon, color: warna, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  teks,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
               ),
-              error: (e, _) => Text('Gagal memuat ringkasan: $e'),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Aksi cepat: Kasir (primer), Tagihan, Stok, Uji Printer.
+class _AksiCepat extends StatelessWidget {
+  const _AksiCepat();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _TombolKasirBesar(
+                saatDitekan: () => context.go(Rute.pos),
+              ),
             ),
-            const SizedBox(height: 20),
-            const _JudulBagian('Menu Owner'),
-            GridView.count(
-              crossAxisCount: 3,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.0,
-              children: [
-                for (final item in _menuOwner) _UbinMenu(item: item),
-              ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: _TombolAksiKaca(
+                label: 'Tagihan',
+                ikon: Icons.receipt_long_outlined,
+                saatDitekan: () => context.go(Rute.tagihan),
+              ),
             ),
-            const SizedBox(height: 20),
-            TombolKaca(
-              label: 'Cetak Uji Printer',
-              ikon: Icons.print_outlined,
-              saatDitekan: () => _bukaUjiPrinter(context),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _TombolAksiKaca(
+                label: 'Stok',
+                ikon: Icons.inventory_2_outlined,
+                saatDitekan: () => context.go(Rute.stok),
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _TombolAksiKaca(
+                label: 'Uji Printer',
+                ikon: Icons.print_outlined,
+                saatDitekan: () => _bukaUjiPrinter(context),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Tombol primer gradien violet — satu-satunya elemen solid.
+class _TombolKasirBesar extends StatelessWidget {
+  const _TombolKasirBesar({required this.saatDitekan});
+
+  final VoidCallback saatDitekan;
+
+  @override
+  Widget build(BuildContext context) {
+    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        saatDitekan();
+      },
+      child: Container(
+        height: 60,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [aksen, WarnaWarkop.aksenGelapHover],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: aksen.withValues(alpha: 0.35),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.point_of_sale_rounded,
+                color: Colors.white, size: 22),
+            const SizedBox(width: 10),
+            Text(
+              'Buka Kasir',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
           ],
         ),
       ),
     );
   }
+}
 
-  void _bukaUjiPrinter(BuildContext context) {
-    HapticFeedback.lightImpact();
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => const _LembarUjiPrinter(),
+/// Tombol aksi gaya kaca — tinggi tetap agar sejajar dalam baris.
+class _TombolAksiKaca extends StatelessWidget {
+  const _TombolAksiKaca({
+    required this.label,
+    required this.ikon,
+    required this.saatDitekan,
+  });
+
+  final String label;
+  final IconData ikon;
+  final VoidCallback saatDitekan;
+
+  @override
+  Widget build(BuildContext context) {
+    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          saatDitekan();
+        },
+        child: Container(
+          height: 60,
+          decoration: BoxDecoration(
+            color: gelap
+                ? WarnaWarkop.kacaGelapSedang
+                : WarnaWarkop.kacaTerangSedang,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: gelap
+                  ? WarnaWarkop.borderKacaGelap
+                  : WarnaWarkop.borderKacaTerang,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(ikon, color: aksen, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: gelap
+                          ? WarnaWarkop.teksGelap
+                          : WarnaWarkop.teksTerang,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -273,111 +907,13 @@ class _JudulBagian extends StatelessWidget {
   }
 }
 
-class _KartuStatistik extends StatelessWidget {
-  const _KartuStatistik({
-    required this.judul,
-    required this.nilai,
-    required this.ikon,
-    required this.warna,
-  });
-
-  final String judul;
-  final String nilai;
-  final IconData ikon;
-  final Color warna;
-
-  @override
-  Widget build(BuildContext context) {
-    return KartuKaca(
-      pakaiBlur: false,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(ikon, color: warna, size: 26),
-          const SizedBox(height: 10),
-          Text(
-            nilai,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.merge(TipografiWarkop.nominal)
-                .copyWith(color: warna),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            judul,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ItemMenu {
-  const _ItemMenu(this.label, this.ikon, this.path);
-
-  final String label;
-  final IconData ikon;
-  final String path;
-}
-
-const _menuOwner = <_ItemMenu>[
-  _ItemMenu('Katalog', Icons.restaurant_menu_outlined, '/katalog'),
-  _ItemMenu('Laporan', Icons.receipt_long_outlined, '/laporan'),
-  _ItemMenu('Jejak Audit', Icons.history_outlined, '/audit'),
-  _ItemMenu('Akun Kasir', Icons.badge_outlined, '/akun-kasir'),
-  _ItemMenu('Stok', Icons.inventory_2_outlined, '/stok'),
-  _ItemMenu('Kombo', Icons.layers_outlined, '/kombo'),
-  _ItemMenu('Kasbon', Icons.handshake_outlined, '/kasbon'),
-  _ItemMenu('Kas Keluar', Icons.money_off_outlined, '/kas-keluar'),
-];
-
-class _UbinMenu extends StatelessWidget {
-  const _UbinMenu({required this.item});
-
-  final _ItemMenu item;
-
-  @override
-  Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          HapticFeedback.lightImpact();
-          context.push(item.path);
-        },
-        child: KartuKaca(
-          pakaiBlur: false,
-          radius: 16,
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(item.ikon, color: aksen, size: 30),
-              const SizedBox(height: 8),
-              Text(
-                item.label,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+void _bukaUjiPrinter(BuildContext context) {
+  HapticFeedback.lightImpact();
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => const _LembarUjiPrinter(),
+  );
 }
 
 /// Bottom sheet uji printer: pindai → pilih perangkat → hubungkan → cetak.
