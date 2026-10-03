@@ -48,10 +48,9 @@ class _LayarMasukOwnerState extends ConsumerState<LayarMasukOwner> {
     }
 
     setState(() => _memuat = true);
-    final hasil = await ref.read(penyediaServiceAuthOwner).masuk(
-          email: _emailCtrl.text,
-          kataSandi: _sandiCtrl.text,
-        );
+    final hasil = await ref
+        .read(penyediaServiceAuthOwner)
+        .masuk(email: _emailCtrl.text, kataSandi: _sandiCtrl.text);
     if (!mounted) return;
     setState(() => _memuat = false);
 
@@ -60,7 +59,9 @@ class _LayarMasukOwnerState extends ConsumerState<LayarMasukOwner> {
       HapticFeedback.heavyImpact();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(hasil.galat ?? 'Gagal masuk. Periksa email & kata sandi.'),
+          content: Text(
+            hasil.galat ?? 'Gagal masuk. Periksa email & kata sandi.',
+          ),
         ),
       );
       return;
@@ -82,98 +83,99 @@ class _LayarMasukOwnerState extends ConsumerState<LayarMasukOwner> {
     final gelap = ref.watch(penyediaModeGelap);
     final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
     final teksUtama = gelap ? WarnaWarkop.teksGelap : WarnaWarkop.teksTerang;
-    final teksRedup =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
+    final teksRedup = gelap
+        ? WarnaWarkop.teksSekunderGelap
+        : WarnaWarkop.teksSekunderTerang;
 
     return Scaffold(
-      // Tanpa AppBar — judul menyatu dengan kartu kaca.
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Kembali',
+          onPressed: () {
+            HapticFeedback.lightImpact();
+            context.go(Rute.selamatDatang);
+          },
+        ),
+        actions: const [TombolTema()],
+      ),
+      // Tanpa judul AppBar — judul menyatu dengan kartu kaca.
       body: OrbLatar(
         child: SafeArea(
-          child: Stack(
-            children: [
-              // Toggle tema mengambang kanan atas.
-              const Positioned(
-                top: 8,
-                right: 16,
-                child: TombolTema(),
-              ),
-              Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: PembungkusGoyang(
-                    pengendali: _goyang,
-                    child: KartuKaca(
-                      tingkat: TingkatKaca.kuat,
-                      radius: 28,
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // Judul serif.
-                            Text(
-                              'Selamat datang\nkembali',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .displaySmall
-                                  ?.copyWith(
-                                    color: teksUtama,
-                                    fontWeight: FontWeight.w600,
-                                    height: 1.15,
-                                  ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Masuk untuk mengelola warkopmu.',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(color: teksRedup),
-                            ),
-                            const SizedBox(height: 28),
-                            _kolomInput(
-                              context,
-                              controller: _emailCtrl,
-                              label: 'Email',
-                              ikon: Icons.email_outlined,
-                              keyboardType: TextInputType.emailAddress,
-                              validator: (v) =>
-                                  (v == null || v.trim().isEmpty)
-                                      ? 'Email wajib diisi'
-                                      : null,
-                            ),
-                            const SizedBox(height: 16),
-                            _kolomInput(
-                              context,
-                              controller: _sandiCtrl,
-                              label: 'Kata Sandi',
-                              ikon: Icons.lock_outline,
-                              obscureText: !_sandiTerlihat,
-                              validator: (v) => (v == null || v.isEmpty)
-                                  ? 'Kata sandi wajib diisi'
-                                  : null,
-                              suffix: IconButton(
-                                icon: Icon(
-                                  _sandiTerlihat
-                                      ? Icons.visibility_outlined
-                                      : Icons.visibility_off_outlined,
-                                  size: 20,
-                                ),
-                                onPressed: () => setState(
-                                  () => _sandiTerlihat = !_sandiTerlihat,
-                                ),
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: PembungkusGoyang(
+                pengendali: _goyang,
+                child: KartuKaca(
+                  tingkat: TingkatKaca.kuat,
+                  radius: 28,
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Judul serif.
+                        Text(
+                          'Selamat datang\nkembali',
+                          style: Theme.of(context).textTheme.displaySmall
+                              ?.copyWith(
+                                color: teksUtama,
+                                fontWeight: FontWeight.w600,
+                                height: 1.15,
                               ),
-                            ),
-                            const SizedBox(height: 28),
-                            _tombolMasuk(context, aksen),
-                          ],
                         ),
-                      ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Masuk untuk mengelola warkopmu.',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodyMedium?.copyWith(color: teksRedup),
+                        ),
+                        const SizedBox(height: 28),
+                        _kolomInput(
+                          context,
+                          controller: _emailCtrl,
+                          label: 'Email',
+                          ikon: Icons.email_outlined,
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Email wajib diisi'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        _kolomInput(
+                          context,
+                          controller: _sandiCtrl,
+                          label: 'Kata Sandi',
+                          ikon: Icons.lock_outline,
+                          obscureText: !_sandiTerlihat,
+                          validator: (v) => (v == null || v.isEmpty)
+                              ? 'Kata sandi wajib diisi'
+                              : null,
+                          suffix: IconButton(
+                            icon: Icon(
+                              _sandiTerlihat
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              size: 20,
+                            ),
+                            onPressed: () => setState(
+                              () => _sandiTerlihat = !_sandiTerlihat,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                        _tombolMasuk(context, aksen),
+                      ],
                     ),
                   ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -269,15 +271,13 @@ class _LayarMasukOwnerState extends ConsumerState<LayarMasukOwner> {
                     height: 24,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(Colors.white),
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   )
                 : const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.login_outlined,
-                          color: Colors.white, size: 20),
+                      Icon(Icons.login_outlined, color: Colors.white, size: 20),
                       SizedBox(width: 10),
                       Text(
                         'Masuk',

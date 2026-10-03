@@ -30,7 +30,7 @@ class DatabaseLokal {
   static final DatabaseLokal instance = DatabaseLokal._();
 
   static const _namaDb = 'warkop_doa_ambu.db';
-  static const _versi = 3;
+  static const _versi = 4;
 
   Database? _db;
 
@@ -84,6 +84,25 @@ class DatabaseLokal {
     if (oldVersion < 3) {
       await _upgradeKe3(db);
     }
+    if (oldVersion < 4) {
+      await _upgradeKe4(db);
+    }
+  }
+
+  /// Migrasi v4: pastikan kolom diskon ada di instalasi lama yang dibuat
+  /// langsung di v3 (skema fresh v3 lupa menyertakan kolom diskon,
+  /// menyebabkan "Gagal menyimpan pesanan" saat checkout).
+  /// Idempoten via [_tambahKolomJikaBelumAda].
+  Future<void> _upgradeKe4(Database db) async {
+    await _tambahKolomJikaBelumAda(
+        db, 'pesanan', 'diskon_nota_nominal', 'INTEGER NOT NULL DEFAULT 0');
+    await _tambahKolomJikaBelumAda(
+        db, 'pesanan', 'diskon_nota_persen', 'REAL NOT NULL DEFAULT 0');
+    await _tambahKolomJikaBelumAda(db, 'pesanan', 'alasan_diskon', 'TEXT');
+    await _tambahKolomJikaBelumAda(
+        db, 'pesanan_rincian', 'diskon_nominal', 'INTEGER NOT NULL DEFAULT 0');
+    await _tambahKolomJikaBelumAda(
+        db, 'pesanan_rincian', 'diskon_persen', 'REAL NOT NULL DEFAULT 0');
   }
 
   /// Migrasi v3: tabel bahan/resep/bayar/opname + kolom diskon.
@@ -273,6 +292,9 @@ class DatabaseLokal {
         foto_bukti_remote TEXT,
         void_alasan TEXT,
         void_disetujui_owner INTEGER NOT NULL DEFAULT 0,
+        diskon_nota_nominal INTEGER NOT NULL DEFAULT 0,
+        diskon_nota_persen REAL NOT NULL DEFAULT 0,
+        alasan_diskon TEXT,
         status_sinkron TEXT NOT NULL DEFAULT 'tertunda',
         diperbarui_pada TEXT NOT NULL,
         apakah_dihapus INTEGER NOT NULL DEFAULT 0
@@ -289,6 +311,8 @@ class DatabaseLokal {
         jumlah INTEGER NOT NULL DEFAULT 1,
         subtotal INTEGER NOT NULL DEFAULT 0,
         catatan TEXT,
+        diskon_nominal INTEGER NOT NULL DEFAULT 0,
+        diskon_persen REAL NOT NULL DEFAULT 0,
         status_sinkron TEXT NOT NULL DEFAULT 'tertunda',
         diperbarui_pada TEXT NOT NULL,
         apakah_dihapus INTEGER NOT NULL DEFAULT 0

@@ -56,7 +56,8 @@ abstract final class Rute {
 
   // Dashboard owner (Fase 8)
   static const dasbor = '/dasbor';
-  static const katalog = '/katalog';
+  static const kategori = '/kategori';
+  static const menu = '/menu';
   static const laporan = '/laporan';
   static const audit = '/audit';
   static const akunKasir = '/akun-kasir';
