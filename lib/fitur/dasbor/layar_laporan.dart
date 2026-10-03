@@ -7,6 +7,7 @@ import '../../app/penyedia.dart';
 import '../../app/tema/token_tipografi.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
+import '../../bersama/util/waktu_wib.dart';
 import '../../bersama/widget/kartu_kaca.dart';
 import '../../bersama/widget/tombol_kaca.dart';
 import '../../data/lokal/database_lokal.dart';
@@ -14,6 +15,7 @@ import '../../data/model/pesanan.dart';
 import 'pengekspor_laporan.dart';
 import 'pengekspor_pdf.dart';
 import 'direktori_ekspor.dart';
+import 'laporan_tambahan.dart';
 import 'util_tanggal.dart';
 
 /// Seluruh pesanan untuk agregasi laporan (7 hari terakhir + harian).
@@ -54,13 +56,13 @@ class _LayarLaporanState extends ConsumerState<LayarLaporan> {
   @override
   void initState() {
     super.initState();
-    final sekarang = DateTime.now();
-    _tanggalTerpilih = DateTime(sekarang.year, sekarang.month, sekarang.day);
+    // Tanggal terpilih = hari kalender WIB saat ini.
+    _tanggalTerpilih = awalHariWib(sekarangWib());
   }
 
   List<_RekapHarian> _rekapTujuhHari(List<Pesanan> semua) {
-    final sekarang = DateTime.now();
-    final hariIni = DateTime(sekarang.year, sekarang.month, sekarang.day);
+    // 7 hari terakhir dalam WIB: hari ini mundur 6 hari.
+    final hariIni = awalHariWib(sekarangWib());
     return List.generate(7, (i) {
       final tanggal = hariIni.subtract(Duration(days: i));
       final milikHari = semua
@@ -79,11 +81,11 @@ class _LayarLaporanState extends ConsumerState<LayarLaporan> {
   }
 
   String _labelHari(DateTime tanggal) {
-    final sekarang = DateTime.now();
-    if (apakahHariYangSama(tanggal, sekarang)) return 'Hari ini';
+    final hariIni = awalHariWib(sekarangWib());
+    if (apakahHariYangSama(tanggal, hariIni)) return 'Hari ini';
     if (apakahHariYangSama(
       tanggal,
-      sekarang.subtract(const Duration(days: 1)),
+      hariIni.subtract(const Duration(days: 1)),
     )) {
       return 'Kemarin';
     }
@@ -156,6 +158,10 @@ class _LayarLaporanState extends ConsumerState<LayarLaporan> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _KartuMingguan(rekap: rekap),
+                  const SizedBox(height: 16),
+                  const BagianMenuTerlaris(),
+                  const SizedBox(height: 16),
+                  const BagianRekapMetodeBayar(),
                   const SizedBox(height: 16),
                   Wrap(
                     spacing: 8,

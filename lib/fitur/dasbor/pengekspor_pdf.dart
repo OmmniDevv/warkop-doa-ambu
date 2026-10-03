@@ -4,6 +4,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../../bersama/format/format_uang.dart';
+import '../../bersama/util/waktu_wib.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/pesanan.dart';
 import 'direktori_ekspor.dart';
@@ -24,9 +25,9 @@ class PengeksporPdf {
   static final _hitam = PdfColor.fromHex('#1F2937');
 
   /// Pesanan lunas di dalam periode (urut waktu naik).
+  /// Batas periode memakai WIB (Asia/Jakarta).
   static Future<List<Pesanan>> _pesananLunas(PeriodeLaporan periode) async {
-    final sekarang = DateTime.now();
-    final hariIni = DateTime(sekarang.year, sekarang.month, sekarang.day);
+    final hariIni = awalHariWib(sekarangWib());
     final awal = hariIni.subtract(Duration(days: periode.jumlahHari - 1));
     final semua = await DatabaseLokal.instance.daftarPesanan();
     final milik = semua
@@ -49,7 +50,7 @@ class PengeksporPdf {
     required String dibuatOleh,
     required String labelPeriode,
   }) {
-    final sekarang = DateTime.now();
+    final sekarang = sekarangWib();
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
@@ -178,7 +179,7 @@ class PengeksporPdf {
     required String dibuatOleh,
   }) async {
     final pesanan = await _pesananLunas(periode);
-    final sekarang = DateTime.now();
+    final sekarang = sekarangWib();
     final akhir = DateTime(sekarang.year, sekarang.month, sekarang.day);
     final awal =
         akhir.subtract(Duration(days: periode.jumlahHari - 1));
@@ -277,7 +278,7 @@ class PengeksporPdf {
     required String dibuatOleh,
   }) async {
     final pesanan = await _pesananLunas(periode);
-    final sekarang = DateTime.now();
+    final sekarang = sekarangWib();
     final akhir = DateTime(sekarang.year, sekarang.month, sekarang.day);
     final awal =
         akhir.subtract(Duration(days: periode.jumlahHari - 1));

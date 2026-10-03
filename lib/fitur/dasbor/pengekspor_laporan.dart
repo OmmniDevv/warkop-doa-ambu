@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:excel/excel.dart';
 
+import '../../bersama/util/waktu_wib.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/pesanan.dart';
 import 'direktori_ekspor.dart';
@@ -48,10 +49,9 @@ class PengeksporLaporan {
   static final _violet = ExcelColor.fromHexString('FF6B4EFF');
   static final _violetMuda = ExcelColor.fromHexString('FFEDEBFF');
 
-  /// Batas awal periode (tengah malam hari pertama).
+  /// Batas awal periode (tengah malam WIB hari pertama).
   static DateTime _awalPeriode(PeriodeLaporan periode) {
-    final sekarang = DateTime.now();
-    final hariIni = DateTime(sekarang.year, sekarang.month, sekarang.day);
+    final hariIni = awalHariWib(sekarangWib());
     return hariIni.subtract(Duration(days: periode.jumlahHari - 1));
   }
 

@@ -8,7 +8,7 @@ import '../../app/router.dart';
 import '../../app/tema/token_tipografi.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
-import '../../bersama/widget/cincin_data.dart';
+import '../../bersama/util/waktu_wib.dart';
 import '../../bersama/widget/kartu_kaca.dart';
 import '../../bersama/widget/orb_latar.dart';
 import '../../bersama/widget/tombol_kaca.dart';
@@ -17,11 +17,13 @@ import '../../data/lokal/database_lokal.dart';
 import '../../data/model/bahan.dart';
 import '../printer/layanan_printer.dart';
 import 'util_tanggal.dart';
+import 'diagram_omzet.dart';
 
 /// Ringkasan angka dasbor owner.
 ///
-/// Batas periode dihitung dari waktu lokal perangkat:
-/// hari = 00:00–24:00, minggu = Senin–Minggu, bulan = kalender berjalan.
+/// Batas periode memakai Asia/Jakarta (WIB) eksplisit:
+/// hari = 00:00–24:00 WIB, minggu = Senin–Minggu WIB,
+/// bulan = kalender berjalan WIB.
 class RingkasanDasbor {
   const RingkasanDasbor({
     required this.omzetHariIni,
@@ -47,27 +49,23 @@ class RingkasanDasbor {
   final int omzetBulanIni;
   final int jumlahPesananBulanIni;
   final List<Bahan> bahanMenipis;
-
-  /// Rasio omzet hari ini vs kemarin untuk [CincinData] (0.0–1.0).
-  double get rasioVsKemarin {
-    if (omzetKemarin <= 0) return omzetHariIni > 0 ? 1.0 : 0.0;
-    return (omzetHariIni / omzetKemarin).clamp(0.0, 1.0);
-  }
 }
 
 /// Hitung ringkasan dari database lokal (offline-first).
+/// Semua batas waktu dalam WIB (Asia/Jakarta).
 final penyediaRingkasanDasbor = FutureProvider<RingkasanDasbor>((ref) async {
   final db = DatabaseLokal.instance;
-  final sekarang = DateTime.now();
-  final awalHari = DateTime(sekarang.year, sekarang.month, sekarang.day);
+  final sekarang = sekarangWib();
+  final awalHari = awalHariWib(sekarang);
   final awalBesok = awalHari.add(const Duration(days: 1));
   final awalKemarin = awalHari.subtract(const Duration(days: 1));
-  final awalMinggu = awalHari.subtract(Duration(days: awalHari.weekday - 1));
-  final awalBulan = DateTime(sekarang.year, sekarang.month);
+  final awalMinggu = awalMingguWib(sekarang);
+  final awalBulan = awalBulanWib(sekarang);
 
   bool dalamRentang(DateTime waktu, DateTime awal, DateTime akhir) {
-    final lokal = waktu.toLocal();
-    return !lokal.isBefore(awal) && lokal.isBefore(akhir);
+    // Perbandingan instant: waktu DB (UTC) vs batas WIB — valid karena
+    // DateTime.isBefore membandingkan titik waktu absolut.
+    return !waktu.isBefore(awal) && waktu.isBefore(akhir);
   }
 
   final pesanan = await db.daftarPesanan();
@@ -206,6 +204,10 @@ class _IsiDasbor extends ConsumerWidget {
                         _KartuOmzetHero(ringkasan: r),
                         const SizedBox(height: 12),
                         _BarisStatistik(ringkasan: r),
+                        const SizedBox(height: 12),
+                        const GrafikOmzet7Hari(),
+                        const SizedBox(height: 12),
+                        const GrafikJamSibuk(),
                         if (r.bahanMenipis.isNotEmpty) ...[
                           const SizedBox(height: 12),
                           _PeringatanBahan(ringkasan: r),
@@ -386,7 +388,11 @@ class _KepalaDasbor extends ConsumerWidget {
   }
 }
 
-/// Kartu hero: cincin omzet hari ini + perbandingan vs kemarin.
+/// Kartu hero: angka omzet hari ini + perbandingan vs kemarin.
+///
+/// Dulu memakai cincin animasi; diganti kartu angka yang bersih karena
+/// user meminta "statistik yang seperti diagram, bukan bulet".
+/// Diagram batangnya ada di [GrafikOmzet7Hari] dan [GrafikJamSibuk].
 class _KartuOmzetHero extends StatelessWidget {
   const _KartuOmzetHero({required this.ringkasan});
 
@@ -402,48 +408,35 @@ class _KartuOmzetHero extends StatelessWidget {
 
     return KartuKaca(
       tingkat: TingkatKaca.kuat,
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CincinData(
-            persen: ringkasan.rasioVsKemarin,
-            diameter: 124,
-            tebalGaris: 11,
-            labelTengah: formatRupiahRingkas(ringkasan.omzetHariIni),
-            sublabel: 'hari ini',
+          Row(
+            children: [
+              Text(
+                'OMZET HARI INI',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: aksen,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                    ),
+              ),
+              const Spacer(),
+              _ChipDelta(ringkasan: ringkasan),
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'OMZET HARI INI',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: aksen,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.2,
-                      ),
+          const SizedBox(height: 8),
+          Text(
+            formatRupiah(ringkasan.omzetHariIni),
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  '${ringkasan.jumlahPesananHariIni} transaksi',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 10),
-                _ChipDelta(ringkasan: ringkasan),
-                const SizedBox(height: 6),
-                Text(
-                  'vs kemarin',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: teksRedup),
-                ),
-              ],
-            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${ringkasan.jumlahPesananHariIni} transaksi • vs kemarin',
+            style:
+                Theme.of(context).textTheme.bodySmall?.copyWith(color: teksRedup),
           ),
         ],
       ),
