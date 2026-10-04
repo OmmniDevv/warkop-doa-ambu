@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/penyedia.dart';
 import '../../app/router.dart';
 import '../../app/tema/token_warna.dart';
+import '../../bersama/izin/layanan_izin.dart';
 import '../../bersama/widget/kartu_kaca.dart';
 import '../../bersama/widget/orb_latar.dart';
 import '../../bersama/widget/pembungkus_goyang.dart';
@@ -74,7 +75,8 @@ class _LayarMasukOwnerState extends ConsumerState<LayarMasukOwner> {
     if (profil == null || profil.hashPinMaster.isEmpty) {
       context.go(Rute.setupPin);
     } else {
-      context.go(Rute.dasbor);
+      // Mampir ke layar izin dulu bila belum pernah ditampilkan.
+      context.go(await LayananIzin.tujuanSetelahMasuk(Rute.dasbor));
     }
   }
 

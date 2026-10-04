@@ -911,6 +911,23 @@ class DatabaseLokal {
   Future<void> perbaruiPesanan(Pesanan pesanan) =>
       _perbarui('pesanan', pesanan.keMap(), pesanan.id);
 
+  /// Hapus lunak draf pesanan (mis. saat kasir kembali dari layar bayar
+  /// ke keranjang untuk mengubah pesanan).
+  Future<void> hapusPesananLunak(String id) => _hapusLunak('pesanan', id);
+
+  /// Hapus permanen seluruh rincian milik [idPesanan].
+  ///
+  /// Dipakai untuk membersihkan draf yang belum pernah tersinkron
+  /// (status 'tertunda'), sehingga tidak ada baris yatim.
+  Future<void> hapusSemuaRincianPesanan(String idPesanan) async {
+    final db = await this.db;
+    await db.delete(
+      'pesanan_rincian',
+      where: 'id_pesanan = ?',
+      whereArgs: [idPesanan],
+    );
+  }
+
   /// Nomor nota berikutnya: "WDA-YYYYMMDD-XXXX", XXXX = urutan hari ini.
   Future<String> nomorNotaBerikutnya() async {
     final db = await this.db;
@@ -1073,6 +1090,19 @@ class DatabaseLokal {
   /// Perbarui shift (misalnya saat tutup shift).
   Future<void> perbaruiShift(ShiftKasir shift) =>
       _perbarui('shift_kasir', shift.keMap(), shift.id);
+
+  /// Daftar seluruh shift (terbaru dulu) untuk riwayat owner.
+  /// Sertakan nama kasir via JOIN ke tabel akun.
+  Future<List<Map<String, Object?>>> daftarRiwayatShift() async {
+    final db = await this.db;
+    return db.rawQuery('''
+      SELECT s.*, a.nama AS nama_kasir
+      FROM shift_kasir s
+      LEFT JOIN akun a ON a.id = s.id_akun
+      WHERE s.apakah_dihapus = 0
+      ORDER BY s.dibuka_pada DESC
+    ''');
+  }
 
   // ── Kasbon ───────────────────────────────────────────────────────
 
