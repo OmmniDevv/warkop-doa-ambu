@@ -47,8 +47,11 @@ class LayarAkunKasir extends ConsumerWidget {
                   return ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: daftar.length,
-                    itemBuilder: (context, i) =>
-                        _BarisKasir(akun: daftar[i]),
+                    itemBuilder: (context, i) => _BarisKasir(
+                      akun: daftar[i],
+                      jumlahAktif:
+                          daftar.where((a) => a.aktif).length,
+                    ),
                   );
                 },
                 loading: () =>
@@ -82,9 +85,12 @@ class LayarAkunKasir extends ConsumerWidget {
 }
 
 class _BarisKasir extends ConsumerWidget {
-  const _BarisKasir({required this.akun});
+  const _BarisKasir({required this.akun, required this.jumlahAktif});
 
   final Akun akun;
+
+  /// Jumlah akun kasir yang masih aktif (untuk peringatan hapus terakhir).
+  final int jumlahAktif;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -112,7 +118,10 @@ class _BarisKasir extends ConsumerWidget {
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextButton(
+              // Ikon kunci (bukan tombol teks) agar muat di layar kecil.
+              IconButton(
+                icon: const Icon(Icons.key_outlined),
+                tooltip: 'Reset PIN ${akun.nama}',
                 onPressed: () {
                   HapticFeedback.lightImpact();
                   showModalBottomSheet<void>(
@@ -121,11 +130,16 @@ class _BarisKasir extends ConsumerWidget {
                     builder: (_) => _LembarPinKasir(akun: akun),
                   );
                 },
-                child: const Text('Reset PIN'),
               ),
               Switch.adaptive(
                 value: akun.aktif,
                 onChanged: (nilai) => _alihkanAktif(context, ref, nilai),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Hapus akun kasir',
+                color: Theme.of(context).colorScheme.error,
+                onPressed: () => _konfirmasiHapus(context, ref),
               ),
             ],
           ),
@@ -157,6 +171,77 @@ class _BarisKasir extends ConsumerWidget {
         HapticFeedback.heavyImpact();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Gagal mengubah status: $e')),
+        );
+      }
+    }
+  }
+
+  /// Hapus akun kasir (soft delete): dialog konfirmasi dulu.
+  ///
+  /// Soft delete = apakah_dihapus=1 + aktif=0, status_sinkron otomatis
+  /// 'tertunda' via perbaruiAkun agar ter-sync ke Supabase. Pesanan
+  /// historis tetap valid karena baris tidak dihapus fisik.
+  /// Boleh hapus sampai habis, tapi beri peringatan bila ini akun
+  /// aktif terakhir.
+  Future<void> _konfirmasiHapus(BuildContext context, WidgetRef ref) async {
+    final adalahTerakhir = jumlahAktif <= 1 && akun.aktif;
+
+    final yakin = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Hapus "${akun.nama}"?'),
+        content: Text(
+          'Akun kasir "${akun.nama}" tidak akan bisa dipakai masuk lagi. '
+          'Pesanan yang sudah dibuat tetap tersimpan.\n'
+          '${adalahTerakhir ? '\n⚠ Ini akun kasir aktif terakhir! Setelah dihapus, tidak ada kasir yang bisa masuk sampai owner membuat akun baru.' : ''}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (yakin != true || !context.mounted) return;
+
+    final db = DatabaseLokal.instance;
+    try {
+      await db.perbaruiAkun(
+        akun.copyWith(aktif: false, apakahDihapus: true),
+      );
+      final idPemilik = ref.read(penyediaProfilPemilik).maybeWhen(
+            data: (profil) => profil?.id,
+            orElse: () => null,
+          );
+      await db.catatAudit(
+        LogAudit(
+          id: idBaru(),
+          aksi: 'hapus_akun_kasir',
+          idAkun: idPemilik,
+          idReferensi: akun.id,
+          dibuatPada: DateTime.now(),
+        ),
+      );
+      ref.invalidate(penyediaDaftarKasir);
+      HapticFeedback.mediumImpact();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Akun kasir "${akun.nama}" dihapus.')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        HapticFeedback.heavyImpact();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menghapus akun: $e')),
         );
       }
     }

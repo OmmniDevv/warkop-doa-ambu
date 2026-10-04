@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../app/penyedia.dart';
+import '../../app/router.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/hitung_diskon.dart';
@@ -20,6 +21,9 @@ import '../../data/model/log_audit.dart';
 import '../../data/model/pesanan.dart';
 import '../../data/model/pesanan_bayar.dart';
 import '../../data/model/pesanan_rincian.dart';
+import '../kasir/penyedia_kasir.dart';
+import '../pos/model_keranjang.dart';
+import '../pos/penyedia_keranjang.dart';
 import 'kamera_bukti.dart';
 
 /// Pilihan metode pembayaran.
@@ -103,6 +107,10 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
   final List<_BarisBayar> _barisBayar = [_BarisBayar(metode: _Metode.tunai)];
 
   bool _memproses = false;
+
+  /// Nota ringkas dibuka (tampilkan rincian item) atau tidak.
+  /// Default tertutup agar area input pembayaran langsung terlihat.
+  bool _notaDibuka = false;
 
   @override
   void initState() {
@@ -344,7 +352,7 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
       if (idOpenBill != null) {
         context.go('/tagihan/$idOpenBill');
       } else {
-        context.go('/pos');
+        context.go(Rute.kasirPos);
       }
     } finally {
       if (mounted) setState(() => _memproses = false);
@@ -388,7 +396,14 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('PEMBAYARAN')),
+      appBar: AppBar(
+        title: const Text('PEMBAYARAN'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Kembali ke kasir',
+          onPressed: _kembaliKeKasir,
+        ),
+      ),
       body: SafeArea(
         child: FutureBuilder<_DataBayar>(
           future: _muat,
@@ -411,14 +426,17 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
             }
             return Column(
               children: [
-                // 55% atas: ringkasan nota (bisa scroll).
-                Flexible(
-                  flex: 55,
-                  child: _bangunZonaNota(pesanan, data.rincian),
+                // Atas: nota ringkas (compact, bisa dibuka).
+                _NotaRingkas(
+                  pesanan: pesanan,
+                  rincian: data.rincian,
+                  dibuka: _notaDibuka,
+                  saatToggle: () =>
+                      setState(() => _notaDibuka = !_notaDibuka),
+                  saatAturDiskon: () => _aturDiskonNota(pesanan),
                 ),
-                // 45% bawah: zona aksi jempol.
-                Flexible(
-                  flex: 45,
+                // Bawah: area pembayaran — prioritas viewport.
+                Expanded(
                   child: _bangunZonaAksi(pesanan, data.rincian),
                 ),
               ],
@@ -427,6 +445,84 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
         ),
       ),
     );
+  }
+
+  /// Kembali dari layar bayar ke kasir/POS.
+  ///
+  /// - Pesanan dari open bill (tagihan): cukup pop, kembali ke detail
+  ///   tagihan. Tidak ada yang diubah.
+  /// - Pesanan dari keranjang POS: kembalikan rincian ke keranjang agar
+  ///   kasir bisa mengubah pesanan, lalu hapus draf pesanan (soft delete)
+  ///   beserta rinciannya supaya tidak jadi nota ganda/yatim.
+  ///   Tidak pernah membuat pesanan baru — jadi tidak ada duplikat.
+  Future<void> _kembaliKeKasir() async {
+    final db = DatabaseLokal.instance;
+    try {
+      final pesanan = await db.ambilPesanan(widget.idPesanan);
+      if (!mounted) return;
+
+      // Dari tagihan: kembali biasa.
+      if (pesanan == null || pesanan.idOpenBill != null) {
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(Rute.kasirTagihan);
+        }
+        return;
+      }
+
+      // Dari keranjang POS: kembalikan isi keranjang dari rincian draf.
+      final rincian = await db.daftarRincianPesanan(pesanan.id);
+      final baris = rincian
+          .map(
+            (r) => BarisKeranjang(
+              idBaris: idBaru(),
+              idMenu: r.idMenu,
+              idPaket: r.idPaket,
+              nama: r.namaSnapshot,
+              hargaSatuan: r.hargaSnapshot,
+              jumlah: r.jumlah,
+              catatan: r.catatan,
+              diskonNominal: r.diskonNominal,
+              diskonPersen: r.diskonPersen,
+            ),
+          )
+          .toList();
+      ref.read(penyediaKeranjang.notifier).isiUlang(baris);
+
+      // Bersihkan draf: pesanan soft delete, rincian hapus permanen
+      // (belum pernah tersinkron, status 'tertunda').
+      await db.hapusPesananLunak(pesanan.id);
+      await db.hapusSemuaRincianPesanan(pesanan.id);
+      await db.catatAudit(
+        LogAudit(
+          id: idBaru(),
+          aksi: 'batal_draft_pesanan',
+          idReferensi: pesanan.id,
+          detail: 'Dikembalikan ke keranjang dari layar bayar',
+          dibuatPada: DateTime.now(),
+        ),
+      );
+
+      HapticFeedback.lightImpact();
+      if (!mounted) return;
+      // Kasir pakai shell kasir. Owner tidak boleh sampai sini (guard),
+      // tapi kalau terjadi, kembalikan ke dasbor.
+      final adalahKasir = ref.read(sesiKasirProvider) != null;
+      context.go(adalahKasir ? Rute.kasirPos : Rute.dasbor);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pesanan dikembalikan ke keranjang.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      HapticFeedback.heavyImpact();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal kembali: $e')),
+      );
+    }
   }
 
   /// Layar pesan tengah + tombol kembali (untuk galat / status final).
@@ -458,149 +554,9 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
     );
   }
 
-  /// Zona atas: nomor nota + daftar rincian + diskon nota + total besar.
-  ///
-  /// Header dan total di-pin; hanya daftar item yang scroll
-  /// ([ListView.builder] agar tidak dirender sekaligus).
-  Widget _bangunZonaNota(Pesanan pesanan, List<PesananRincian> rincian) {
-    final tema = Theme.of(context);
-    final gelap = tema.brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    final potongan = hitungPotongan(
-      pesanan.total,
-      nominal: pesanan.diskonNotaNominal,
-      persen: pesanan.diskonNotaPersen,
-    );
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          KartuKaca(
-            tanpaBlur: true,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('NOTA', style: tema.textTheme.labelLarge),
-                Text(
-                  pesanan.nomorNota,
-                  style: tema.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: KartuKaca(
-              tanpaBlur: true,
-              child: rincian.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Tidak ada item.',
-                        style: tema.textTheme.bodyMedium,
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: EdgeInsets.zero,
-                      itemCount: rincian.length,
-                      itemBuilder: (context, indeks) {
-                        final baris = rincian[indeks];
-                        final potonganItem = hitungPotongan(
-                          baris.hargaSnapshot * baris.jumlah,
-                          nominal: baris.diskonNominal,
-                          persen: baris.diskonPersen,
-                        );
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${baris.namaSnapshot} × ${baris.jumlah}',
-                                      style: tema.textTheme.bodyMedium,
-                                    ),
-                                    if (potonganItem > 0)
-                                      Text(
-                                        'Diskon -${formatRupiah(potonganItem)}',
-                                        style: tema.textTheme.bodySmall
-                                            ?.copyWith(
-                                          color: WarnaWarkop.hijauAman,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                formatRupiah(baris.subtotal),
-                                style: tema.textTheme.bodyMedium,
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Baris diskon nota: ketuk untuk atur/ubah.
-          _BarisDiskonNota(
-            potongan: potongan,
-            alasan: pesanan.alasanDiskon,
-            saatAtur: () => _aturDiskonNota(pesanan),
-          ),
-          const SizedBox(height: 8),
-          KartuKaca(
-            tanpaBlur: true,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'TOTAL',
-                  style: tema.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    if (potongan > 0)
-                      Text(
-                        formatRupiah(pesanan.total),
-                        style: tema.textTheme.bodySmall?.copyWith(
-                          decoration: TextDecoration.lineThrough,
-                          color: tema.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    Text(
-                      formatRupiah(totalBersihNota(pesanan)),
-                      style: tema.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: aksen,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   /// Zona bawah: pilih mode tunggal/gabungan + input bayar + Selesaikan.
   Widget _bangunZonaAksi(Pesanan pesanan, List<PesananRincian> rincian) {
-    final tema = Theme.of(context);
-    final skema = tema.colorScheme;
     final total = totalBersihNota(pesanan);
 
     final bool bisaSelesai;
@@ -615,57 +571,65 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
           (tunai ? _bayarTunai >= total : _pathFoto != null);
     }
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: skema.surface,
-        border: Border(
-          top: BorderSide(color: skema.outlineVariant),
-        ),
-      ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Pilihan mode pembayaran.
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(
-                  value: false,
-                  label: Text('Tunggal'),
-                  icon: Icon(Icons.payments_outlined),
-                ),
-                ButtonSegment(
-                  value: true,
-                  label: Text('Gabungan'),
-                  icon: Icon(Icons.splitscreen_outlined),
-                ),
-              ],
-              selected: {_gabungan},
-              onSelectionChanged: (pilihan) {
-                HapticFeedback.selectionClick();
-                setState(() => _gabungan = pilihan.first);
-              },
-            ),
-            const SizedBox(height: 12),
-            if (_gabungan) ...[
-              ..._bangunGabungan(total),
-            ] else ...[
-              _bangunPilihMetode(),
-              const SizedBox(height: 12),
-              if (_metode == _Metode.tunai) ..._bangunTunai(total) else ..._bangunNonTunai(total),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Pilihan mode pembayaran (fixed).
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(
+                value: false,
+                label: Text('Satu Metode'),
+                icon: Icon(Icons.payments_outlined),
+              ),
+              ButtonSegment(
+                value: true,
+                label: Text('Gabungan'),
+                icon: Icon(Icons.splitscreen_outlined),
+              ),
             ],
-            const SizedBox(height: 12),
-            TombolKaca(
-              label: 'Selesaikan',
-              ikon: Icons.check,
-              memuat: _memproses,
-              aktif: bisaSelesai,
-              saatDitekan: () => _selesaikan(pesanan, rincian),
-            ),
-          ],
+            selected: {_gabungan},
+            onSelectionChanged: (pilihan) {
+              HapticFeedback.selectionClick();
+              setState(() => _gabungan = pilihan.first);
+            },
+          ),
         ),
-      ),
+        // Area input: scroll hanya bila konten melebihi viewport.
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_gabungan) ...[
+                  ..._bangunGabungan(total),
+                ] else ...[
+                  _bangunPilihMetode(),
+                  const SizedBox(height: 12),
+                  if (_metode == _Metode.tunai)
+                    ..._bangunTunai(total)
+                  else
+                    ..._bangunNonTunai(total),
+                ],
+              ],
+            ),
+          ),
+        ),
+        // Tombol Selesaikan selalu terlihat (fixed di bawah).
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          child: TombolKaca(
+            label: 'Selesaikan',
+            ikon: Icons.check,
+            memuat: _memproses,
+            aktif: bisaSelesai,
+            saatDitekan: () => _selesaikan(pesanan, rincian),
+          ),
+        ),
+      ],
     );
   }
 
@@ -865,7 +829,9 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
       Text(
         kurang > 0
             ? 'Kurang ${formatRupiah(kurang)}'
-            : 'Kembalian ${formatRupiah(-kurang)}',
+            : kurang < 0
+                ? 'Kembalian ${formatRupiah(-kurang)}'
+                : 'Uang pas — tidak ada kembalian',
         style: tema.textTheme.titleMedium?.copyWith(
           fontWeight: FontWeight.w700,
           color: kurang > 0 ? WarnaWarkop.merahMenyala : WarnaWarkop.hijauAman,
@@ -904,6 +870,149 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
         textAlign: TextAlign.center,
       ),
     ];
+  }
+}
+
+/// Nota ringkas di atas layar bayar: satu baris compact berisi nomor nota,
+/// jumlah item, dan TOTAL. Ketuk untuk membuka rincian item + diskon.
+/// Rincian item memakai [ListView.builder] agar tidak dirender sekaligus.
+///
+/// Default tertutup agar area input pembayaran langsung terlihat tanpa scroll.
+class _NotaRingkas extends StatelessWidget {
+  const _NotaRingkas({
+    required this.pesanan,
+    required this.rincian,
+    required this.dibuka,
+    required this.saatToggle,
+    required this.saatAturDiskon,
+  });
+
+  final Pesanan pesanan;
+  final List<PesananRincian> rincian;
+  final bool dibuka;
+  final VoidCallback saatToggle;
+  final VoidCallback saatAturDiskon;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final gelap = tema.brightness == Brightness.dark;
+    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final teksRedup =
+        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
+    final potongan = hitungPotongan(
+      pesanan.total,
+      nominal: pesanan.diskonNotaNominal,
+      persen: pesanan.diskonNotaPersen,
+    );
+    final jumlahItem = rincian.fold<int>(0, (s, r) => s + r.jumlah);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: KartuKaca(
+        tanpaBlur: true,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InkWell(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                saatToggle();
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          pesanan.nomorNota,
+                          style: tema.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          '$jumlahItem item',
+                          style: tema.textTheme.bodySmall?.copyWith(
+                            color: teksRedup,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (potongan > 0)
+                        Text(
+                          formatRupiah(pesanan.total),
+                          style: tema.textTheme.bodySmall?.copyWith(
+                            decoration: TextDecoration.lineThrough,
+                            color: teksRedup,
+                          ),
+                        ),
+                      Text(
+                        formatRupiah(totalBersihNota(pesanan)),
+                        style: tema.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: aksen,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    dibuka
+                        ? Icons.expand_less_rounded
+                        : Icons.expand_more_rounded,
+                    color: teksRedup,
+                  ),
+                ],
+              ),
+            ),
+            if (dibuka) ...[
+              const Divider(height: 20),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 180),
+                child: ListView.builder(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  itemCount: rincian.length,
+                  itemBuilder: (context, indeks) {
+                    final baris = rincian[indeks];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${baris.namaSnapshot} × ${baris.jumlah}',
+                              style: tema.textTheme.bodyMedium,
+                            ),
+                          ),
+                          Text(
+                            formatRupiah(baris.subtotal),
+                            style: tema.textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 4),
+              _BarisDiskonNota(
+                potongan: potongan,
+                alasan: pesanan.alasanDiskon,
+                saatAtur: saatAturDiskon,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1133,7 +1242,7 @@ class _DialogDiskonNotaState extends State<_DialogDiskonNota> {
           onPressed: () => Navigator.of(context).pop(
             const _HasilDiskonNota(nominal: 0, persen: 0, alasan: ''),
           ),
-          child: const Text('Hapus'),
+          child: const Text('Hapus Diskon'),
         ),
         FilledButton(
           onPressed: _bisaSimpan ? _simpan : null,

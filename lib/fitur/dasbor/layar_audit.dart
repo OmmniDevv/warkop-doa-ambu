@@ -49,8 +49,8 @@ class _LayarAuditState extends ConsumerState<LayarAudit> {
                 controller: _kontrolCari,
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
-                  labelText: 'Cari aksi…',
-                  hintText: 'mis. void_pesanan',
+                  labelText: 'Cari jejak…',
+                  hintText: 'mis. void, kasbon, stok, menu',
                   prefixIcon: const Icon(Icons.search_outlined),
                   border: const OutlineInputBorder(),
                   suffixIcon: _kataKunci.isEmpty
