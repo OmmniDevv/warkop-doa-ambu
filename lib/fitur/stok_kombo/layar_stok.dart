@@ -562,14 +562,17 @@ class _LembarKelolaStokState extends State<_LembarKelolaStok> {
                     ),
               ),
               const SizedBox(height: 16),
-              Text('Stok saat ini', style: Theme.of(context).textTheme.labelLarge),
+              Text('Jumlah stok',
+                  style: Theme.of(context).textTheme.labelLarge),
               const SizedBox(height: 8),
               TextField(
                 controller: _kontrolStok,
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 style: TipografiWarkop.nominal.copyWith(fontSize: 20),
-                decoration: const InputDecoration(hintText: '0'),
+                decoration: const InputDecoration(
+                  hintText: 'Isi jumlah stok, atau pakai tombol cepat',
+                ),
               ),
               const SizedBox(height: 12),
               Row(

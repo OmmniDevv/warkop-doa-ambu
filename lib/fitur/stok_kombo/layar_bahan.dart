@@ -264,8 +264,8 @@ class _BarisBahan extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'min. ${_tampilAngka(bahan.stokMinimum)} ${bahan.satuan} · '
-                    '${formatRupiah(bahan.hargaBeli)} / ${bahan.satuan}',
+                    'Min: ${_tampilAngka(bahan.stokMinimum)} ${bahan.satuan} · '
+                    'Harga: ${formatRupiah(bahan.hargaBeli)}/${bahan.satuan}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context)
                               .colorScheme

@@ -195,8 +195,8 @@ class _IsiBelanja extends ConsumerWidget {
             tanpaBlur: true,
             border: WarnaWarkop.kuningAntre.withValues(alpha: 0.45),
             child: Text(
-              '${daftar.length} bahan menipis — saran beli dihitung '
-              'dari batas minimum × 2.',
+              '${daftar.length} bahan perlu dibeli — saran jumlahnya '
+              'dihitung otomatis, tinggal sesuaikan.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ),

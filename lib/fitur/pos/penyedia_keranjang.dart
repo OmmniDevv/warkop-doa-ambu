@@ -117,6 +117,12 @@ class NotifikasiKeranjang extends Notifier<List<BarisKeranjang>> {
     state = const [];
   }
 
+  /// Ganti seluruh isi keranjang dengan [daftar] (mis. saat mengembalikan
+  /// draf pesanan dari layar bayar ke keranjang untuk diubah).
+  void isiUlang(List<BarisKeranjang> daftar) {
+    state = List<BarisKeranjang>.unmodifiable(daftar);
+  }
+
   /// Jumlah seluruh item (total pcs, bukan jumlah baris).
   int get totalItem => state.totalItem;
 

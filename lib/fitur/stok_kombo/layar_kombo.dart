@@ -234,7 +234,7 @@ class _BarisPaket extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       '${formatRupiah(paket.hargaPaket)} · '
-                      '${data.rincian.length} isi',
+                      'isi ${data.rincian.length} menu',
                       style: TipografiWarkop.nominal.copyWith(
                         fontSize: 14,
                         color: Theme.of(context)

@@ -8,7 +8,7 @@ import 'layar_pos.dart';
 /// `lib/app/router.dart`.
 final List<GoRoute> rutePos = [
   GoRoute(
-    path: '/pos/tagihan/:idTagihan',
+    path: '/k/pos/tagihan/:idTagihan',
     builder: (context, state) =>
         LayarPos(idTagihan: state.pathParameters['idTagihan']!),
   ),
