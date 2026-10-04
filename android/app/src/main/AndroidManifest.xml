@@ -3,8 +3,14 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Export laporan: simpan PDF/Excel ke Documents publik. -->
+    <!-- Android 9 ke bawah: izin tulis klasik. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <!-- Android 10-12: baca penyimpanan eksternal. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- Android 13+: izin media granular (pengganti READ_EXTERNAL_STORAGE). -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <!-- Fase 5: kamera in-app untuk foto bukti pembayaran non-tunai. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Kamera opsional: fitur foto bukti disembunyikan bila tak ada kamera. -->

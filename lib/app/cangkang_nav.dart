@@ -3,13 +3,14 @@ import 'package:go_router/go_router.dart';
 
 import '../bersama/widget/nav_pill_bawah.dart';
 
-/// Cangkang navigasi bawah aplikasi.
+/// Cangkang navigasi bawah owner.
 ///
-/// Membungkus 5 cabang tab [StatefulNavigationShell] dengan [NavPillBawah]:
-/// Beranda (0) · Stok (1) · [Kasir tengah] (2) · Tagihan (3) · Lainnya (4).
+/// Cabang: Stok (0) · Kelola Kasir (1) · [Beranda tengah] (2) ·
+/// Laporan (3) · Lainnya (4).
+/// Beranda jadi tombol tengah yang menonjol — pusat kendali owner.
+/// Owner adalah manajer, bukan kasir: tidak ada akses POS/pembayaran.
 ///
-/// Ketuk ulang tab yang sedang aktif → kembali ke akar cabang
-/// (mis. dari detail tagihan kembali ke daftar).
+/// Ketuk ulang tab yang sedang aktif → kembali ke akar cabang.
 class CangkangNav extends StatelessWidget {
   const CangkangNav({super.key, required this.cangkang});
 
@@ -18,19 +19,19 @@ class CangkangNav extends StatelessWidget {
 
   static const _item = <ItemNavBawah>[
     ItemNavBawah(
-      ikon: Icons.home_outlined,
-      ikonAktif: Icons.home_rounded,
-      label: 'Beranda',
-    ),
-    ItemNavBawah(
       ikon: Icons.inventory_2_outlined,
       ikonAktif: Icons.inventory_2_rounded,
       label: 'Stok',
     ),
     ItemNavBawah(
-      ikon: Icons.receipt_long_outlined,
-      ikonAktif: Icons.receipt_long_rounded,
-      label: 'Tagihan',
+      ikon: Icons.manage_accounts_outlined,
+      ikonAktif: Icons.manage_accounts_rounded,
+      label: 'Kasir',
+    ),
+    ItemNavBawah(
+      ikon: Icons.assessment_outlined,
+      ikonAktif: Icons.assessment_rounded,
+      label: 'Laporan',
     ),
     ItemNavBawah(
       ikon: Icons.menu_rounded,
@@ -55,8 +56,8 @@ class CangkangNav extends StatelessWidget {
         item: _item,
         indeksAktif: cangkang.currentIndex,
         saatDipilih: _keCabang,
-        ikonTengah: Icons.point_of_sale_rounded,
-        labelTengah: 'Kasir',
+        ikonTengah: Icons.home_rounded,
+        labelTengah: 'Beranda',
         saatTengahDipilih: () => _keCabang(2),
       ),
     );

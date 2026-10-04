@@ -54,7 +54,7 @@ class NotifikasiModeGelap extends Notifier<bool> {
 /// PENTING: Jangan panggil [bangunRouter] di dalam build()! Membuat GoRouter
 /// baru setiap rebuild (mis. saat ganti tema) akan me-reset seluruh state
 /// navigasi dan melempar user ke layar awal — terlihat seperti "logout".
-final penyediaRouter = Provider<GoRouter>((ref) => bangunRouter());
+final penyediaRouter = Provider<GoRouter>((ref) => bangunRouter(ref));
 
 /// Memaksa [penyediaProfilPemilik] dibaca ulang (mis. setelah PIN disimpan).
 void segarkanProfil(WidgetRef ref) {

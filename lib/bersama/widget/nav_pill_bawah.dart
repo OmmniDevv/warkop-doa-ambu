@@ -20,25 +20,40 @@ class ItemNavBawah {
 
 /// Bottom navigation pill ngambang ala referensi gambar 1.
 ///
-/// 5 slot: 2 kiri, tombol tengah BESAR menonjol, 2 kanan.
-/// Tombol tengah memakai gradien violet + elevated — untuk aksi utama (Kasir).
+/// Mode tengah (default): 5 slot — 2 kiri, tombol tengah BESAR menonjol,
+/// 2 kanan. Tombol tengah memakai gradien violet + elevated untuk aksi utama.
+/// Mode tanpa tengah ([tampilkanTengah] = false): 4 item sejajar tanpa
+/// tombol tengah — dipakai navbar owner (Beranda · Stok · Laporan · Lainnya).
 class NavPillBawah extends StatelessWidget {
   const NavPillBawah({
     super.key,
     required this.item,
     required this.indeksAktif,
     required this.saatDipilih,
-    required this.ikonTengah,
-    required this.labelTengah,
-    required this.saatTengahDipilih,
-  }) : assert(item.length == 4, 'Harus 4 item: 2 kiri + 2 kanan');
+    this.ikonTengah,
+    this.labelTengah,
+    this.saatTengahDipilih,
+    this.tampilkanTengah = true,
+  }) : assert(item.length == 4, 'Harus 4 item: 2 kiri + 2 kanan'),
+       assert(
+         !tampilkanTengah ||
+             (ikonTengah != null &&
+                 labelTengah != null &&
+                 saatTengahDipilih != null),
+         'Mode tengah butuh ikonTengah, labelTengah, saatTengahDipilih',
+       );
 
   final List<ItemNavBawah> item;
   final int indeksAktif;
   final ValueChanged<int> saatDipilih;
-  final IconData ikonTengah;
-  final String labelTengah;
-  final VoidCallback saatTengahDipilih;
+
+  /// Konfigurasi tombol tengah (wajib bila [tampilkanTengah] true).
+  final IconData? ikonTengah;
+  final String? labelTengah;
+  final VoidCallback? saatTengahDipilih;
+
+  /// False = 4 item sejajar tanpa tombol tengah.
+  final bool tampilkanTengah;
 
   @override
   Widget build(BuildContext context) {
@@ -82,66 +97,80 @@ class NavPillBawah extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      // 2 kiri.
-                      Expanded(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _tombolItem(context, 0, aksen, teksRedup),
-                            _tombolItem(context, 1, aksen, teksRedup),
-                          ],
+                      if (tampilkanTengah) ...[
+                        // 2 kiri.
+                        Expanded(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _tombolItem(context, 0, aksen, teksRedup),
+                              _tombolItem(context, 1, aksen, teksRedup),
+                            ],
+                          ),
                         ),
-                      ),
-                      // Ruang tombol tengah.
-                      const SizedBox(width: 72),
-                      // 2 kanan.
-                      Expanded(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _tombolItem(context, 2, aksen, teksRedup),
-                            _tombolItem(context, 3, aksen, teksRedup),
-                          ],
+                        // Ruang tombol tengah.
+                        const SizedBox(width: 72),
+                        // 2 kanan.
+                        Expanded(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _tombolItem(context, 2, aksen, teksRedup),
+                              _tombolItem(context, 3, aksen, teksRedup),
+                            ],
+                          ),
                         ),
-                      ),
+                      ] else
+                        // 4 item sejajar tanpa tombol tengah.
+                        for (var i = 0; i < 4; i++)
+                          Expanded(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _tombolItem(context, i, aksen, teksRedup),
+                              ],
+                            ),
+                          ),
                     ],
                   ),
                 ),
               ),
             ),
-            // Tombol tengah BESAR menonjol.
-            Positioned(
-              bottom: 10,
-              child: GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  saatTengahDipilih();
-                },
-                child: Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        aksen,
-                        WarnaWarkop.aksenGelapHover,
+            // Tombol tengah BESAR menonjol (hanya mode tengah).
+            if (tampilkanTengah)
+              Positioned(
+                bottom: 10,
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    saatTengahDipilih?.call();
+                  },
+                  child: Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          aksen,
+                          WarnaWarkop.aksenGelapHover,
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: aksen.withValues(alpha: 0.4),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
                       ],
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: aksen.withValues(alpha: 0.4),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
+                    child:
+                        Icon(ikonTengah, color: Colors.white, size: 28),
                   ),
-                  child: Icon(ikonTengah, color: Colors.white, size: 28),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -154,21 +183,21 @@ class NavPillBawah extends StatelessWidget {
     Color aksen,
     Color teksRedup,
   ) {
-    // Mapping: item[0,1] kiri → cabang 0,1; item[2,3] kanan → cabang 3,4
-    // (cabang 2 = tombol tengah). Samakan dengan mapping di onTap.
+    // Mode tengah: item[0,1] kiri → cabang 0,1; item[2,3] kanan → cabang 3,4
+    // (cabang 2 = tombol tengah). Mode tanpa tengah: pemetaan langsung.
     final data = item[indeks];
-    final cabang = indeks >= 2 ? indeks + 1 : indeks;
+    final cabang =
+        tampilkanTengah ? (indeks >= 2 ? indeks + 1 : indeks) : indeks;
     final aktif = indeksAktif == cabang;
 
     return GestureDetector(
       onTap: () {
         HapticFeedback.selectionClick();
-        // Indeks 2,3 di kanan memetakan ke tab 3,4 (lewati tengah).
-        saatDipilih(indeks >= 2 ? indeks + 1 : indeks);
+        saatDipilih(cabang);
       },
       behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         decoration: BoxDecoration(
           color: aktif ? aksen.withValues(alpha: 0.12) : Colors.transparent,
           borderRadius: BorderRadius.circular(999),
@@ -182,12 +211,17 @@ class NavPillBawah extends StatelessWidget {
               size: 22,
             ),
             const SizedBox(height: 2),
-            Text(
-              data.label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: aktif ? FontWeight.w600 : FontWeight.w400,
-                color: aktif ? aksen : teksRedup,
+            // FittedBox: label tidak boleh kepotong di layar sempit.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                data.label,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: aktif ? FontWeight.w600 : FontWeight.w400,
+                  color: aktif ? aksen : teksRedup,
+                ),
               ),
             ),
           ],
