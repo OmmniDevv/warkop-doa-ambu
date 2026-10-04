@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/tema/token_tipografi.dart';
+import '../../app/router.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/id_unik.dart';
@@ -70,7 +71,7 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
     if (context.canPop()) {
       context.pop();
     } else {
-      context.go('/tagihan');
+      context.go(Rute.kasirTagihan);
     }
   }
 
@@ -101,7 +102,7 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
       await DatabaseLokal.instance
           .perbaruiOpenBill(tagihan.copyWith(status: 'tutup'));
       if (!mounted) return;
-      context.go('/tagihan');
+      context.go(Rute.kasirTagihan);
     } catch (_) {
       _pesan('Gagal menutup tagihan. Coba lagi ya.');
     } finally {
@@ -390,7 +391,7 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
                 ikon: Icons.add_shopping_cart,
                 saatDitekan: () {
                   HapticFeedback.lightImpact();
-                  context.go('/pos/tagihan/${widget.idTagihan}');
+                  context.go('/k/pos/tagihan/${widget.idTagihan}');
                 },
               ),
               const SizedBox(height: 12),
@@ -404,8 +405,9 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
               else
                 Text(
                   daftarBaru.isEmpty
-                      ? 'Tagihan sudah ${tagihan.status == 'tutup' ? 'ditutup' : 'selesai'}.'
-                      : 'Tutup tagihan aktif setelah semua nota lunas atau void.',
+                      ? 'Tagihan sudah ditutup.'
+                      : 'Tutup tagihan aktif setelah semua nota lunas '
+                          'atau dibatalkan.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),

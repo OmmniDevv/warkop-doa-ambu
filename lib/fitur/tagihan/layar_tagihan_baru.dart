@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/tema/token_tipografi.dart';
+import '../../app/router.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/util/id_unik.dart';
 import '../../bersama/widget/kartu_kaca.dart';
@@ -55,7 +56,7 @@ class _LayarTagihanBaruState extends ConsumerState<LayarTagihanBaru> {
     if (context.canPop()) {
       context.pop();
     } else {
-      context.go('/tagihan');
+      context.go(Rute.kasirTagihan);
     }
   }
 
@@ -175,7 +176,7 @@ class _LayarTagihanBaruState extends ConsumerState<LayarTagihanBaru> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Isi nama untuk menandai tagihan selain nomor meja.',
+                      'Isi nama kalau tagihannya bukan untuk nomor meja.',
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall

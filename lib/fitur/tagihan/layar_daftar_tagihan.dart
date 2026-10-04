@@ -41,12 +41,16 @@ final ringkasanTagihanProvider =
   );
 });
 
-/// Waktu singkat: "4/10 00:18".
+/// Waktu singkat: "4 Okt 00:18".
 String formatWaktuSingkat(DateTime waktu) {
+  const namaBulan = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+    'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+  ];
   final lokal = keWib(waktu);
   final jam = lokal.hour.toString().padLeft(2, '0');
   final menit = lokal.minute.toString().padLeft(2, '0');
-  return '${lokal.day}/${lokal.month} $jam:$menit';
+  return '${lokal.day} ${namaBulan[lokal.month - 1]} $jam:$menit';
 }
 
 /// Daftar seluruh tagihan terbuka. Ketuk kartu untuk membuka detail.
@@ -77,7 +81,8 @@ class LayarDaftarTagihan extends ConsumerWidget {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go(Rute.beranda);
+              // Layar ini hanya dipakai kasir (shell kasir).
+              context.go(Rute.kasirTagihan);
             }
           },
         ),
@@ -193,7 +198,7 @@ class _KartuTagihan extends ConsumerWidget {
           borderRadius: BorderRadius.circular(20),
           onTap: () {
             HapticFeedback.lightImpact();
-            context.push('${Rute.tagihan}/${tagihan.id}');
+            context.push('/tagihan/${tagihan.id}');
           },
           child: KartuKaca(
             tanpaBlur: true,
