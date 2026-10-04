@@ -9,6 +9,7 @@ import '../../app/tema/token_tipografi.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/waktu_wib.dart';
+import '../../bersama/izin/layanan_izin.dart';
 import '../../bersama/widget/kartu_kaca.dart';
 import '../../bersama/widget/orb_latar.dart';
 import '../../bersama/widget/tombol_kaca.dart';
@@ -18,6 +19,7 @@ import '../../data/model/bahan.dart';
 import '../printer/layanan_printer.dart';
 import 'util_tanggal.dart';
 import 'diagram_omzet.dart';
+import '../kasir/penyedia_kasir.dart';
 
 /// Ringkasan angka dasbor owner.
 ///
@@ -240,14 +242,19 @@ class _IsiDasbor extends ConsumerWidget {
   }
 }
 
-/// Keluar dari akun owner: dialog konfirmasi → hapus sesi → layar awal.
+/// Keluar: role-aware — kalau sesi kasir aktif, keluar HANYA sebagai kasir
+/// (sesi owner TIDAK tersentuh). Kalau tidak, keluar sebagai owner.
 Future<void> _keluarDariDasbor(BuildContext context, WidgetRef ref) async {
+  final adalahKasir = ref.read(sesiKasirProvider) != null;
   final yakin = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('Yakin mau keluar?'),
-      content:
-          const Text('Kamu akan keluar dari akun owner di perangkat ini.'),
+      content: Text(
+        adalahKasir
+            ? 'Kamu akan keluar dari akun kasir di perangkat ini. Sesi owner tidak terganggu.'
+            : 'Kamu akan keluar dari akun owner di perangkat ini.',
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(ctx).pop(false),
@@ -261,6 +268,12 @@ Future<void> _keluarDariDasbor(BuildContext context, WidgetRef ref) async {
     ),
   );
   if (yakin != true || !context.mounted) return;
+  if (adalahKasir) {
+    ref.read(sesiKasirProvider.notifier).ganti(null);
+    ref.read(shiftAktifProvider.notifier).ganti(null);
+    if (context.mounted) context.go(Rute.kasir);
+    return;
+  }
   await ref.read(penyediaServiceAuthOwner).keluar();
   segarkanProfil(ref);
   if (context.mounted) context.go(Rute.selamatDatang);
@@ -801,7 +814,7 @@ class _BarisInfo extends StatelessWidget {
   }
 }
 
-/// Aksi cepat: Kasir (primer), Tagihan, Stok, Uji Printer.
+/// Aksi cepat: Laporan (primer), Kelola Kasir, Stok, Uji Printer.
 class _AksiCepat extends StatelessWidget {
   const _AksiCepat();
 
@@ -812,16 +825,18 @@ class _AksiCepat extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: _TombolKasirBesar(
-                saatDitekan: () => context.go(Rute.pos),
+              child: _TombolAksiBesar(
+                label: 'Laporan',
+                ikon: Icons.assessment_rounded,
+                saatDitekan: () => context.go(Rute.laporan),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _TombolAksiKaca(
-                label: 'Tagihan',
-                ikon: Icons.receipt_long_outlined,
-                saatDitekan: () => context.go(Rute.tagihan),
+                label: 'Kelola Kasir',
+                ikon: Icons.manage_accounts_outlined,
+                saatDitekan: () => context.go(Rute.akunKasir),
               ),
             ),
           ],
@@ -852,9 +867,15 @@ class _AksiCepat extends StatelessWidget {
 }
 
 /// Tombol primer gradien violet — satu-satunya elemen solid.
-class _TombolKasirBesar extends StatelessWidget {
-  const _TombolKasirBesar({required this.saatDitekan});
+class _TombolAksiBesar extends StatelessWidget {
+  const _TombolAksiBesar({
+    required this.label,
+    required this.ikon,
+    required this.saatDitekan,
+  });
 
+  final String label;
+  final IconData ikon;
   final VoidCallback saatDitekan;
 
   @override
@@ -887,11 +908,10 @@ class _TombolKasirBesar extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.point_of_sale_rounded,
-                color: Colors.white, size: 22),
+            Icon(ikon, color: Colors.white, size: 22),
             const SizedBox(width: 10),
             Text(
-              'Buka Kasir',
+              label,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
@@ -1009,7 +1029,7 @@ class _LembarUjiPrinter extends ConsumerStatefulWidget {
 
 class _LembarUjiPrinterState extends ConsumerState<_LembarUjiPrinter> {
   late final PrinterBluetooth _printer;
-  late Stream<List<PerangkatPrinter>> _aliranPindai;
+  Stream<List<PerangkatPrinter>>? _aliranPindai;
   PerangkatPrinter? _terpilih;
   bool _menghubungkan = false;
   bool _mencetak = false;
@@ -1018,7 +1038,15 @@ class _LembarUjiPrinterState extends ConsumerState<_LembarUjiPrinter> {
   void initState() {
     super.initState();
     _printer = PrinterBluetooth();
-    _aliranPindai = _printer.pindai();
+    _siapkanPindai();
+  }
+
+  /// Minta izin Bluetooth (Android 12+) sebelum pindai printer.
+  Future<void> _siapkanPindai() async {
+    await LayananIzin.mintaIzinBluetooth();
+    if (mounted) {
+      setState(() => _aliranPindai = _printer.pindai());
+    }
   }
 
   @override
