@@ -181,7 +181,7 @@ class PengeksporLaporan {
     if (apakahHariYangSama(awal, akhir)) {
       return formatTanggalPendek(akhir);
     }
-    return '${formatTanggalPendek(awal)} – ${formatTanggalPendek(akhir)}';
+    return '${formatTanggalPendek(awal)} - ${formatTanggalPendek(akhir)}';
   }
 
   // ── Rekap penjualan ──────────────────────────────────────────────
@@ -232,7 +232,7 @@ class PengeksporLaporan {
 
     final barisKepala = _tulisKepala(
       sheet,
-      judul: 'REKAP PENJUALAN — ${periode.label.toUpperCase()}',
+      judul: 'REKAP PENJUALAN - ${periode.label.toUpperCase()}',
       dibuatOleh: dibuatOleh,
       labelPeriode: _labelRentang(awal, akhir),
     );
@@ -325,7 +325,7 @@ class PengeksporLaporan {
 
     final barisKepala = _tulisKepala(
       sheet,
-      judul: 'MENU TERLARIS — ${periode.label.toUpperCase()}',
+      judul: 'MENU TERLARIS - ${periode.label.toUpperCase()}',
       dibuatOleh: dibuatOleh,
       labelPeriode: _labelRentang(awal, akhir),
     );

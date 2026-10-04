@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/penyedia.dart';
 import '../../app/router.dart';
 import '../../app/tema/token_warna.dart';
+import '../../bersama/izin/layanan_izin.dart';
 import '../../bersama/widget/kartu_kaca.dart';
 import '../../bersama/widget/tombol_tema.dart';
 import '../../bersama/widget/keypad_angka.dart';
@@ -85,7 +86,9 @@ class _LayarPinKasirState extends ConsumerState<LayarPinKasir> {
       final shift = await db.ambilShiftAktif(terdaftar.id);
       if (!mounted) return;
       ref.read(shiftAktifProvider.notifier).ganti(shift);
-      context.go(shift != null ? '/pos' : '/shift/buka');
+      // Mampir ke layar izin dulu bila belum pernah ditampilkan.
+      final tujuan = shift != null ? Rute.kasirPos : '/shift/buka';
+      context.go(await LayananIzin.tujuanSetelahMasuk(tujuan));
       return;
     }
 

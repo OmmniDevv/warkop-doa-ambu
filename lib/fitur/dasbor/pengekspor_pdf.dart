@@ -24,6 +24,32 @@ class PengeksporPdf {
   static final _abu = PdfColor.fromHex('#6B7280');
   static final _hitam = PdfColor.fromHex('#1F2937');
 
+  /// Bersihkan teks agar aman untuk font PDF standar (Helvetica).
+  ///
+  /// Font PDF bawaan tidak mendukung karakter khusus seperti en-dash (–),
+  /// em-dash (—), bullet (•), dsb — karakter itu tampil sebagai kotak aneh.
+  /// Fungsi ini mengganti semuanya dengan padanan ASCII yang aman.
+  /// WAJIB dipakai untuk semua teks dinamis (nama menu, nama owner, dll).
+  static String teksAman(String teks) {
+    return teks
+        .replaceAll('–', '-') // en-dash
+        .replaceAll('—', '-') // em-dash
+        .replaceAll('•', '*') // bullet
+        .replaceAll('·', '-') // middle dot
+        .replaceAll('…', '...') // ellipsis
+        .replaceAll('“', '"')
+        .replaceAll('”', '"')
+        .replaceAll('‘', "'")
+        .replaceAll('’', "'")
+        .replaceAll('→', '->')
+        .replaceAll('←', '<-')
+        .replaceAll('×', 'x')
+        .replaceAll('✓', 'v')
+        .replaceAll('✗', 'x')
+        // Hapus sisa karakter non-ASCII yang tidak dikenal.
+        .replaceAll(RegExp(r'[^\x00-\x7F]'), '');
+  }
+
   /// Pesanan lunas di dalam periode (urut waktu naik).
   /// Batas periode memakai WIB (Asia/Jakarta).
   static Future<List<Pesanan>> _pesananLunas(PeriodeLaporan periode) async {
@@ -41,7 +67,7 @@ class PengeksporPdf {
     if (apakahHariYangSama(awal, akhir)) {
       return formatTanggalPendek(akhir);
     }
-    return '${formatTanggalPendek(awal)} – ${formatTanggalPendek(akhir)}';
+    return '${formatTanggalPendek(awal)} - ${formatTanggalPendek(akhir)}';
   }
 
   /// Kop halaman: nama warkop + judul + info pembuat.
@@ -72,11 +98,11 @@ class PengeksporPdf {
           ),
         ),
         pw.SizedBox(height: 8),
-        pw.Text('Dibuat oleh: $dibuatOleh',
+        pw.Text('Dibuat oleh: ${teksAman(dibuatOleh)}',
             style: pw.TextStyle(fontSize: 10, color: _abu)),
         pw.Text('Tanggal: ${formatTanggalWaktu(sekarang)}',
             style: pw.TextStyle(fontSize: 10, color: _abu)),
-        pw.Text('Periode: $labelPeriode',
+        pw.Text('Periode: ${teksAman(labelPeriode)}',
             style: pw.TextStyle(fontSize: 10, color: _abu)),
         pw.SizedBox(height: 12),
         pw.Divider(color: _ungu, thickness: 2),
@@ -156,7 +182,7 @@ class PengeksporPdf {
           alignment: pw.Alignment.centerRight,
           margin: const pw.EdgeInsets.only(top: 16),
           child: pw.Text(
-            '$judul — Halaman ${ctx.pageNumber} dari ${ctx.pagesCount}',
+            '$judul - Halaman ${ctx.pageNumber} dari ${ctx.pagesCount}',
             style: pw.TextStyle(fontSize: 8, color: _abu),
           ),
         );
@@ -212,7 +238,7 @@ class PengeksporPdf {
       }
     }
 
-    final judul = 'REKAP PENJUALAN — ${periode.label.toUpperCase()}';
+    final judul = 'REKAP PENJUALAN - ${periode.label.toUpperCase()}';
     final dokumen = pw.Document();
 
     final barisData = <List<String>>[];
@@ -225,7 +251,7 @@ class PengeksporPdf {
       final rata = k.jumlah == 0 ? 0 : (k.omzet / k.jumlah).round();
       barisData.add([
         '${i + 1}',
-        urutan[i],
+        teksAman(urutan[i]),
         '${k.jumlah}',
         formatRupiah(k.omzet),
         formatRupiah(rata),
@@ -296,7 +322,7 @@ class PengeksporPdf {
     final urutan = agregat.keys.toList()
       ..sort((a, b) => agregat[b]!.jumlah.compareTo(agregat[a]!.jumlah));
 
-    final judul = 'MENU TERLARIS — ${periode.label.toUpperCase()}';
+    final judul = 'MENU TERLARIS - ${periode.label.toUpperCase()}';
     final dokumen = pw.Document();
 
     final barisData = <List<String>>[];
@@ -309,7 +335,7 @@ class PengeksporPdf {
       totalOmzet += k.omzet;
       barisData.add([
         '${i + 1}',
-        nama,
+        teksAman(nama),
         '${k.jumlah}',
         formatRupiah(k.omzet),
         formatRupiah(k.jumlah == 0 ? 0 : (k.omzet / k.jumlah).round()),

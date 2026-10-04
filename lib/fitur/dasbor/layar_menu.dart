@@ -183,6 +183,54 @@ class _LayarMenuState extends ConsumerState<LayarMenu> {
   }
 
   Future<void> _nonaktifkanMenu(Menu menu) async {
+    final db = DatabaseLokal.instance;
+
+    // Menu yang sudah nonaktif: tawarkan untuk mengaktifkannya kembali
+    // langsung dari daftar (tanpa harus buka form ubah).
+    if (!menu.tersedia) {
+      final aktifkan = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Aktifkan Menu'),
+          content: Text(
+            'Tampilkan "${menu.nama}" lagi di daftar jual?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Aktifkan'),
+            ),
+          ],
+        ),
+      );
+      if (aktifkan != true) return;
+      try {
+        await db.perbaruiMenu(menu.copyWith(tersedia: true));
+        await db.catatAudit(
+          LogAudit(
+            id: idBaru(),
+            aksi: 'aktifkan_menu',
+            idReferensi: menu.id,
+            dibuatPada: DateTime.now(),
+          ),
+        );
+        ref.invalidate(penyediaSemuaMenu);
+        HapticFeedback.mediumImpact();
+      } catch (e) {
+        if (mounted) {
+          HapticFeedback.heavyImpact();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal mengaktifkan menu: $e')),
+          );
+        }
+      }
+      return;
+    }
+
     final yakin = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -202,7 +250,6 @@ class _LayarMenuState extends ConsumerState<LayarMenu> {
     );
     if (yakin != true) return;
 
-    final db = DatabaseLokal.instance;
     try {
       await db.hapusMenuLunak(menu.id);
       await db.catatAudit(
@@ -297,8 +344,10 @@ class _BarisMenu extends StatelessWidget {
           ),
           onTap: saatUbah,
           trailing: IconButton(
-            tooltip: 'Nonaktifkan',
-            icon: const Icon(Icons.delete_outline),
+            tooltip: menu.tersedia ? 'Nonaktifkan' : 'Aktifkan lagi',
+            icon: Icon(
+              menu.tersedia ? Icons.delete_outline : Icons.restore_outlined,
+            ),
             onPressed: saatHapus,
           ),
         ),
@@ -528,7 +577,7 @@ class _FormMenuSheetState extends ConsumerState<_FormMenuSheet> {
     final nama = _nama.text.trim();
     final harga = int.tryParse(_harga.text.trim());
     final stok = int.tryParse(_stok.text.trim()) ?? 0;
-    final stokMin = int.tryParse(_stok.text.trim()) ?? 0;
+    final stokMin = int.tryParse(_stokMin.text.trim()) ?? 0;
 
     String? galat;
     if (nama.isEmpty) {

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/penyedia.dart';
+import '../../app/router.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/id_unik.dart';
@@ -79,7 +80,7 @@ class _LayarBukaShiftState extends ConsumerState<LayarBukaShift> {
     HapticFeedback.mediumImpact();
     ref.read(shiftAktifProvider.notifier).ganti(shift);
     setState(() => _memproses = false);
-    context.go('/pos');
+    context.go(Rute.kasirPos);
   }
 
   @override

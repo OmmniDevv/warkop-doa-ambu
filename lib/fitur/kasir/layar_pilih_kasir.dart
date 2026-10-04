@@ -47,7 +47,18 @@ class LayarPilihKasir extends ConsumerWidget {
     final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('PILIH KASIR'), actions: const [TombolTema()]),
+      appBar: AppBar(
+        title: const Text('PILIH KASIR'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Kembali ke beranda',
+          onPressed: () {
+            HapticFeedback.lightImpact();
+            context.go(Rute.selamatDatang);
+          },
+        ),
+        actions: const [TombolTema()],
+      ),
       body: SafeArea(
         child: FutureBuilder<({List<Akun> daftar, InfoUnduhAkun? info})>(
           future: _muatKasir(ref),
@@ -125,10 +136,10 @@ class LayarPilihKasir extends ConsumerWidget {
   }
 }
 
-/// Banner status sinkron akun: "Terakhir sinkron: ...".
+/// Banner status unduhan akun kasir.
 ///
 /// Agar user tahu daftar kasir fresh dari server — bukan data basi.
-/// Menampilkan peringatan bila belum pernah sinkron / gagal beruntun.
+/// Menampilkan peringatan bila belum pernah mengunduh / gagal beruntun.
 /// [info] dibaca SETELAH sinkron selesai agar akurat.
 class _StatusSinkronAkun extends StatelessWidget {
   const _StatusSinkronAkun({required this.info});
@@ -146,16 +157,16 @@ class _StatusSinkronAkun extends StatelessWidget {
     late final IconData ikon;
     late final Color warna;
     if (info == null) {
-      teks = 'Belum pernah sinkron akun dari server';
+      teks = 'Belum pernah ambil data kasir dari server';
       ikon = Icons.cloud_off_outlined;
       warna = WarnaWarkop.merahMenyala;
     } else if (info!.gagalBeruntun > 0) {
-      teks = 'Sinkron akun gagal ${info!.gagalBeruntun}x — '
-          'akan dicoba lagi otomatis';
+      teks = 'Gagal ambil data kasir ${info!.gagalBeruntun}x — '
+          'dicoba lagi otomatis';
       ikon = Icons.sync_problem_outlined;
       warna = WarnaWarkop.merahMenyala;
     } else {
-      teks = 'Terakhir sinkron: ${formatTanggalWaktu(info!.waktu)} '
+      teks = 'Terakhir ambil data: ${formatTanggalWaktu(info!.waktu)} '
           '• ${info!.jumlah} akun';
       ikon = Icons.cloud_done_outlined;
       warna = WarnaWarkop.hijauAman;
