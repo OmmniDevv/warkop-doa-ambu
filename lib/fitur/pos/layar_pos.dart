@@ -884,7 +884,8 @@ class _PanelKeranjang extends ConsumerWidget {
             child: baris.isEmpty
                 ? Center(
                     child: Text(
-                      'Ketuk menu untuk menambah.',
+                      'Ketuk menu di atas untuk menambah ke keranjang.',
+                      textAlign: TextAlign.center,
                       style: teks.bodyMedium?.copyWith(
                         color: skema.onSurfaceVariant,
                       ),
@@ -1003,6 +1004,7 @@ class _BarisKeranjangState extends ConsumerState<_BarisKeranjang> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Baris atas: nama + stepper jumlah (ruang lega untuk nama).
             Row(
               children: [
                 Expanded(
@@ -1028,16 +1030,6 @@ class _BarisKeranjangState extends ConsumerState<_BarisKeranjang> {
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Diskon item',
-                  icon: Icon(
-                    Icons.percent_outlined,
-                    color: baris.adaDiskon
-                        ? WarnaWarkop.hijauAman
-                        : skema.onSurfaceVariant,
-                  ),
-                  onPressed: _aturDiskon,
-                ),
-                IconButton(
                   tooltip: 'Kurangi',
                   icon: const Icon(Icons.remove_circle_outline),
                   onPressed: () {
@@ -1054,16 +1046,10 @@ class _BarisKeranjangState extends ConsumerState<_BarisKeranjang> {
                     HapticFeedback.lightImpact();
                   },
                 ),
-                IconButton(
-                  tooltip: 'Hapus',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () {
-                    notifikasi.hapusBaris(baris.idBaris);
-                    HapticFeedback.lightImpact();
-                  },
-                ),
               ],
             ),
+            // Baris bawah: subtotal + aksi diskon & hapus (jempol mudah
+            // menjangkau, tidak berdesakan dengan nama).
             Row(
               children: [
                 Expanded(
@@ -1074,6 +1060,24 @@ class _BarisKeranjangState extends ConsumerState<_BarisKeranjang> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                ),
+                IconButton(
+                  tooltip: 'Diskon item',
+                  icon: Icon(
+                    Icons.percent_outlined,
+                    color: baris.adaDiskon
+                        ? WarnaWarkop.hijauAman
+                        : skema.onSurfaceVariant,
+                  ),
+                  onPressed: _aturDiskon,
+                ),
+                IconButton(
+                  tooltip: 'Hapus',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () {
+                    notifikasi.hapusBaris(baris.idBaris);
+                    HapticFeedback.lightImpact();
+                  },
                 ),
               ],
             ),
@@ -1182,6 +1186,8 @@ class _LembarDiskonItemState extends State<_LembarDiskonItem> {
           ),
           Text(
             'Diskon — ${widget.baris.nama}',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: teks.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),

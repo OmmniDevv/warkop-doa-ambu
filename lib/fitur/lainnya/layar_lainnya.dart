@@ -40,7 +40,7 @@ class LayarLainnya extends ConsumerWidget {
     _UbinLainnya(
       label: 'Daftar Belanja',
       ikon: Icons.shopping_cart_outlined,
-      path: Rute.daftarBelanja,
+      path: Rute.belanja,
       warna: WarnaWarkop.hijauAman,
     ),
     _UbinLainnya(
@@ -67,19 +67,13 @@ class LayarLainnya extends ConsumerWidget {
       path: Rute.kategori,
       warna: WarnaWarkop.emas,
     ),
+    // Resep dikelola per menu lewat form menu (BagianResep), jadi tidak
+    // perlu ubin sendiri — ubin "Menu" di bawah sudah mencakupnya.
     _UbinLainnya(
       label: 'Menu',
       ikon: Icons.restaurant_menu_outlined,
       path: Rute.menu,
       warna: WarnaWarkop.aksenTerang,
-    ),
-    // Resep belum punya layar mandiri — dikelola per menu lewat
-    // BagianResep di form menu, jadi ubin ini membuka layar Menu.
-    _UbinLainnya(
-      label: 'Resep',
-      ikon: Icons.soup_kitchen_outlined,
-      path: Rute.menu,
-      warna: WarnaWarkop.kuningAntre,
     ),
     _UbinLainnya(
       label: 'Bahan',
@@ -98,6 +92,12 @@ class LayarLainnya extends ConsumerWidget {
       ikon: Icons.badge_outlined,
       path: Rute.akunKasir,
       warna: WarnaWarkop.hijauAman,
+    ),
+    _UbinLainnya(
+      label: 'Riwayat Shift',
+      ikon: Icons.schedule_outlined,
+      path: Rute.riwayatShift,
+      warna: WarnaWarkop.kuningAntre,
     ),
     _UbinLainnya(
       label: 'Pengaturan',

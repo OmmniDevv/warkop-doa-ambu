@@ -10,6 +10,7 @@ import '../../app/tema/token_warna.dart';
 import '../../bersama/widget/kartu_kaca.dart';
 import '../../bersama/widget/orb_latar.dart';
 import '../dasbor/direktori_ekspor.dart';
+import '../kasir/penyedia_kasir.dart';
 
 /// Status folder export pilihan user (untuk refresh tampilan).
 final penyediaFolderEkspor =
@@ -121,11 +122,18 @@ class LayarPengaturan extends ConsumerWidget {
   const LayarPengaturan({super.key});
 
   Future<void> _keluar(BuildContext context, WidgetRef ref) async {
+    // Role-aware: kalau yang aktif sesi kasir, keluar HANYA sebagai kasir.
+    // Sesi owner (Supabase) TIDAK boleh tersentuh.
+    final adalahKasir = ref.read(sesiKasirProvider) != null;
     final yakin = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Keluar?'),
-        content: const Text('Kamu akan keluar dari akun owner di perangkat ini.'),
+        content: Text(
+          adalahKasir
+              ? 'Kamu akan keluar dari akun kasir di perangkat ini. Sesi owner tidak terganggu.'
+              : 'Kamu akan keluar dari akun owner di perangkat ini.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -139,6 +147,13 @@ class LayarPengaturan extends ConsumerWidget {
       ),
     );
     if (yakin != true || !context.mounted) return;
+    if (adalahKasir) {
+      // Logout kasir: bersihkan sesi kasir + shift lokal saja.
+      ref.read(sesiKasirProvider.notifier).ganti(null);
+      ref.read(shiftAktifProvider.notifier).ganti(null);
+      if (context.mounted) context.go(Rute.kasir);
+      return;
+    }
     await ref.read(penyediaServiceAuthOwner).keluar();
     segarkanProfil(ref);
     if (context.mounted) context.go(Rute.masuk);
