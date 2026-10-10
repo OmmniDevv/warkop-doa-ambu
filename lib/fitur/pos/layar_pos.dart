@@ -291,51 +291,59 @@ class _LayarPosState extends ConsumerState<LayarPos> {
                         ref.invalidate(_penyediaPaket);
                       },
                     )
-                  : Column(
-                      children: [
-                        _bangunHeader(kasir.nama),
-                        if (widget.idTagihan != null)
-                          _ChipTagihan(idTagihan: widget.idTagihan!),
-                        _bangunPencarian(),
-                        _bangunKategori(
-                          daftarKategori: kategoriAsync.value ?? const [],
-                        ),
-                        // Grid menu mengisi ruang sisa; panel keranjang
-                        // bisa dilipat/dibuka (75% layar saat dibuka).
-                        Expanded(
-                          child: _modeKombo
-                              ? _GridPaket(
-                                  daftarPaket: _paketTampil(
-                                    paketAsync.value ?? const [],
-                                  ),
-                                  saatTap: _tambahPaket,
-                                )
-                              : _GridMenu(
-                                  daftarMenu: _menuTampil(
-                                    menuAsync.value ?? const [],
-                                  ),
-                                  saatTap: _tambahMenu,
-                                ),
-                        ),
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 280),
-                          curve: Curves.easeInOut,
-                          height: _keranjangDibuka
-                              ? MediaQuery.of(context).size.height * 0.75
-                              : 76,
-                          child: _PanelKeranjang(
-                            memproses: _memproses,
-                            dibuka: _keranjangDibuka,
-                            saatToggle: () => setState(
-                              () => _keranjangDibuka = !_keranjangDibuka,
+                  : LayoutBuilder(
+                      builder: (context, kendala) {
+                        // 75% dari ruang kolom yang tersedia (bukan layar
+                        // penuh) agar panel tidak overflow ke belakang
+                        // navbar dan tombol selalu terlihat.
+                        final tinggiPanelTerbuka = kendala.maxHeight * 0.75;
+                        return Column(
+                          children: [
+                            _bangunHeader(kasir.nama),
+                            if (widget.idTagihan != null)
+                              _ChipTagihan(idTagihan: widget.idTagihan!),
+                            _bangunPencarian(),
+                            _bangunKategori(
+                              daftarKategori: kategoriAsync.value ?? const [],
                             ),
-                            saatBuatPesanan: _buatPesanan,
-                            saatSimpanBelumBayar: widget.idTagihan == null
-                                ? _simpanBelumBayar
-                                : null,
-                          ),
-                        ),
-                      ],
+                            // Grid menu mengisi ruang sisa; panel keranjang
+                            // bisa dilipat/dibuka (75% ruang saat dibuka).
+                            Expanded(
+                              child: _modeKombo
+                                  ? _GridPaket(
+                                      daftarPaket: _paketTampil(
+                                        paketAsync.value ?? const [],
+                                      ),
+                                      saatTap: _tambahPaket,
+                                    )
+                                  : _GridMenu(
+                                      daftarMenu: _menuTampil(
+                                        menuAsync.value ?? const [],
+                                      ),
+                                      saatTap: _tambahMenu,
+                                    ),
+                            ),
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 280),
+                              curve: Curves.easeInOut,
+                              height: _keranjangDibuka
+                                  ? tinggiPanelTerbuka
+                                  : 76,
+                              child: _PanelKeranjang(
+                                memproses: _memproses,
+                                dibuka: _keranjangDibuka,
+                                saatToggle: () => setState(
+                                  () => _keranjangDibuka = !_keranjangDibuka,
+                                ),
+                                saatBuatPesanan: _buatPesanan,
+                                saatSimpanBelumBayar: widget.idTagihan == null
+                                    ? _simpanBelumBayar
+                                    : null,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
         ),
       ),
