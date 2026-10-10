@@ -14,6 +14,7 @@ import '../../bersama/widget/tombol_kaca.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/kategori_menu.dart';
 import '../../data/model/menu.dart';
+import '../../data/model/open_bill.dart';
 import '../../data/model/paket_kombo.dart';
 import '../../data/model/pesanan.dart';
 import '../../data/model/pesanan_rincian.dart';
@@ -116,12 +117,12 @@ class _LayarPosState extends ConsumerState<LayarPos> {
   }
 
   /// Simpan pesanan + rinciannya ke SQLite (termasuk diskon per item).
-  /// Mengembalikan id pesanan, atau null bila gagal.
-  Future<void> _buatPesanan() async {
-    if (_memproses) return;
+  /// Mengembalikan id pesanan, atau null bila gagal / dibatalkan.
+  Future<String?> _simpanPesanan(String? idBill) async {
+    if (_memproses) return null;
     final kasir = ref.read(sesiKasirProvider);
     final baris = ref.read(penyediaKeranjang);
-    if (kasir == null || baris.isEmpty) return;
+    if (kasir == null || baris.isEmpty) return null;
     setState(() => _memproses = true);
     try {
       final db = DatabaseLokal.instance;
@@ -131,7 +132,7 @@ class _LayarPosState extends ConsumerState<LayarPos> {
         nomorNota: await db.nomorNotaBerikutnya(),
         idAkun: kasir.id,
         idShift: ref.read(shiftAktifProvider)?.id,
-        idOpenBill: widget.idTagihan,
+        idOpenBill: idBill,
         metodeBayar: 'tunai',
         status: 'baru',
         total: baris.totalHarga,
@@ -165,7 +166,7 @@ class _LayarPosState extends ConsumerState<LayarPos> {
       ref.read(penyediaKeranjang.notifier).kosongkan();
       ref.invalidate(_penyediaMenu);
       ref.invalidate(_penyediaPaket);
-      if (mounted) context.go('/bayar/${pesanan.id}');
+      return pesanan.id;
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -174,8 +175,62 @@ class _LayarPosState extends ConsumerState<LayarPos> {
           ),
         );
       }
+      return null;
     } finally {
       if (mounted) setState(() => _memproses = false);
+    }
+  }
+
+  /// Alur normal: buat pesanan lalu lanjut ke layar bayar.
+  Future<void> _buatPesanan() async {
+    final id = await _simpanPesanan(widget.idTagihan);
+    if (id != null && mounted) context.go('/bayar/$id');
+  }
+
+  /// Simpan keranjang sebagai tagihan "belum bayar" (open bill baru).
+  /// Pelanggan bisa nambah pesanan lagi nanti dari daftar tagihan.
+  Future<void> _simpanBelumBayar() async {
+    if (_memproses) return;
+    if (ref.read(penyediaKeranjang).isEmpty) return;
+    if (ref.read(sesiKasirProvider) == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Masuk sebagai kasir dulu.')),
+      );
+      return;
+    }
+    final label = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _LembarLabelTagihan(),
+    );
+    if (label == null || label.isEmpty || !mounted) return;
+    try {
+      final idBill = idBaru();
+      await DatabaseLokal.instance.simpanOpenBill(
+        OpenBill(
+          id: idBill,
+          label: label,
+          status: 'buka',
+          idAkun: ref.read(sesiKasirProvider)!.id,
+          statusSinkron: 'tertunda',
+          diperbaruiPada: DateTime.now(),
+          apakahDihapus: false,
+        ),
+      );
+      final idPesanan = await _simpanPesanan(idBill);
+      if (idPesanan != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Tersimpan sebagai belum bayar: $label')),
+        );
+        context.go('/tagihan/$idBill');
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal menyimpan tagihan. Coba lagi.')),
+        );
+      }
     }
   }
 
@@ -264,6 +319,9 @@ class _LayarPosState extends ConsumerState<LayarPos> {
                           child: _PanelKeranjang(
                             memproses: _memproses,
                             saatBuatPesanan: _buatPesanan,
+                            saatSimpanBelumBayar: widget.idTagihan == null
+                                ? _simpanBelumBayar
+                                : null,
                           ),
                         ),
                       ],
@@ -816,10 +874,15 @@ class _PanelKeranjang extends ConsumerWidget {
   const _PanelKeranjang({
     required this.memproses,
     required this.saatBuatPesanan,
+    this.saatSimpanBelumBayar,
   });
 
   final bool memproses;
   final VoidCallback saatBuatPesanan;
+
+  /// Jika diisi, tampil tombol "Belum Bayar" di samping "Buat Pesanan".
+  /// Dikosongkan saat POS dibuka dari tagihan (pesanan sudah nempel tagihan).
+  final VoidCallback? saatSimpanBelumBayar;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -922,13 +985,41 @@ class _PanelKeranjang extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 10),
-                TombolKaca(
-                  label: 'Buat Pesanan',
-                  ikon: Icons.receipt_long_outlined,
-                  memuat: memproses,
-                  aktif: baris.isNotEmpty,
-                  saatDitekan: saatBuatPesanan,
-                ),
+                if (saatSimpanBelumBayar != null)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TombolKaca(
+                          label: 'Belum Bayar',
+                          ikon: Icons.bookmark_add_outlined,
+                          lebarPenuh: false,
+                          memuat: memproses,
+                          aktif: baris.isNotEmpty,
+                          saatDitekan: saatSimpanBelumBayar,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: TombolKaca(
+                          label: 'Buat Pesanan',
+                          ikon: Icons.receipt_long_outlined,
+                          lebarPenuh: false,
+                          memuat: memproses,
+                          aktif: baris.isNotEmpty,
+                          saatDitekan: saatBuatPesanan,
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  TombolKaca(
+                    label: 'Buat Pesanan',
+                    ikon: Icons.receipt_long_outlined,
+                    memuat: memproses,
+                    aktif: baris.isNotEmpty,
+                    saatDitekan: saatBuatPesanan,
+                  ),
               ],
             ),
           ),
@@ -1267,6 +1358,114 @@ class _LembarDiskonItemState extends State<_LembarDiskonItem> {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Lembar pilih label tagihan saat menyimpan sebagai "belum bayar".
+/// Mengembalikan label final (nama ketikan menang atas pilihan meja),
+/// atau null bila dibatalkan.
+class _LembarLabelTagihan extends StatefulWidget {
+  const _LembarLabelTagihan();
+
+  static const daftarMeja = <String>[
+    'Meja 1', 'Meja 2', 'Meja 3', 'Meja 4',
+    'Meja 5', 'Meja 6', 'Meja 7', 'Meja 8',
+    'Meja 9', 'Meja 10', 'Meja 11', 'Meja 12',
+  ];
+
+  @override
+  State<_LembarLabelTagihan> createState() => _LembarLabelTagihanState();
+}
+
+class _LembarLabelTagihanState extends State<_LembarLabelTagihan> {
+  final _kontrolNama = TextEditingController();
+  String _mejaTerpilih = 'Meja 1';
+
+  @override
+  void dispose() {
+    _kontrolNama.dispose();
+    super.dispose();
+  }
+
+  String get _labelFinal {
+    final ketikan = _kontrolNama.text.trim();
+    return ketikan.isNotEmpty ? ketikan : _mejaTerpilih;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final teks = Theme.of(context).textTheme;
+    final skema = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: KartuKaca(
+        radius: 24,
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: skema.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Simpan Belum Bayar',
+              style: teks.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Pesanan dicatat dulu, pelanggan bisa nambah lagi nanti.',
+              style: teks.bodySmall?.copyWith(color: skema.onSurfaceVariant),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Pilih Meja',
+              style: teks.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final meja in _LembarLabelTagihan.daftarMeja)
+                  ChoiceChip(
+                    label: Text(meja),
+                    selected: _mejaTerpilih == meja,
+                    onSelected: (_) => setState(() => _mejaTerpilih = meja),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _kontrolNama,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Nama pelanggan (opsional)',
+                hintText: 'cth: Pak Budi',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TombolKaca(
+              label: 'Simpan: $_labelFinal',
+              ikon: Icons.bookmark_add_outlined,
+              saatDitekan: () => Navigator.of(context).pop(_labelFinal),
+            ),
+          ],
+        ),
       ),
     );
   }
