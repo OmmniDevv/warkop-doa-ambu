@@ -1089,23 +1089,33 @@ class _PanelKeranjang extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 10),
-              TombolKaca(
-                label: 'Buat Pesanan',
-                ikon: Icons.receipt_long_outlined,
-                memuat: memproses,
-                aktif: baris.isNotEmpty,
-                saatDitekan: saatBuatPesanan,
+              Row(
+                children: [
+                  Expanded(
+                    child: TombolKaca(
+                      label: 'Bayar',
+                      ikon: Icons.receipt_long_outlined,
+                      lebarPenuh: false,
+                      memuat: memproses,
+                      aktif: baris.isNotEmpty,
+                      saatDitekan: saatBuatPesanan,
+                    ),
+                  ),
+                  if (saatSimpanBelumBayar != null) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TombolKaca(
+                        label: 'Pesan',
+                        ikon: Icons.bookmark_add_outlined,
+                        lebarPenuh: false,
+                        memuat: memproses,
+                        aktif: baris.isNotEmpty,
+                        saatDitekan: saatSimpanBelumBayar,
+                      ),
+                    ),
+                  ],
+                ],
               ),
-              if (saatSimpanBelumBayar != null) ...[
-                const SizedBox(height: 10),
-                TombolKaca(
-                  label: 'Simpan Belum Bayar',
-                  ikon: Icons.bookmark_add_outlined,
-                  memuat: memproses,
-                  aktif: baris.isNotEmpty,
-                  saatDitekan: saatSimpanBelumBayar,
-                ),
-              ],
             ],
           ),
         ),
