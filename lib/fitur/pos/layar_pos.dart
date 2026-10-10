@@ -70,6 +70,10 @@ class _LayarPosState extends ConsumerState<LayarPos> {
   String _kataKunci = '';
   bool _memproses = false;
 
+  /// Panel keranjang mulai dalam keadaan terlipat; kasir membuka
+  /// dengan panah atas, menutup dengan panah bawah.
+  bool _keranjangDibuka = false;
+
   @override
   void dispose() {
     _pencarianController.dispose();
@@ -296,9 +300,9 @@ class _LayarPosState extends ConsumerState<LayarPos> {
                         _bangunKategori(
                           daftarKategori: kategoriAsync.value ?? const [],
                         ),
-                        // 50% atas: grid menu.
-                        Flexible(
-                          flex: 50,
+                        // Grid menu mengisi ruang sisa; panel keranjang
+                        // bisa dilipat/dibuka (75% layar saat dibuka).
+                        Expanded(
                           child: _modeKombo
                               ? _GridPaket(
                                   daftarPaket: _paketTampil(
@@ -313,11 +317,18 @@ class _LayarPosState extends ConsumerState<LayarPos> {
                                   saatTap: _tambahMenu,
                                 ),
                         ),
-                        // 50% bawah: panel keranjang (zona jempol).
-                        Flexible(
-                          flex: 50,
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 280),
+                          curve: Curves.easeInOut,
+                          height: _keranjangDibuka
+                              ? MediaQuery.of(context).size.height * 0.75
+                              : 76,
                           child: _PanelKeranjang(
                             memproses: _memproses,
+                            dibuka: _keranjangDibuka,
+                            saatToggle: () => setState(
+                              () => _keranjangDibuka = !_keranjangDibuka,
+                            ),
                             saatBuatPesanan: _buatPesanan,
                             saatSimpanBelumBayar: widget.idTagihan == null
                                 ? _simpanBelumBayar
@@ -873,14 +884,20 @@ class _LencanaStok extends StatelessWidget {
 class _PanelKeranjang extends ConsumerWidget {
   const _PanelKeranjang({
     required this.memproses,
+    required this.dibuka,
+    required this.saatToggle,
     required this.saatBuatPesanan,
     this.saatSimpanBelumBayar,
   });
 
   final bool memproses;
+
+  /// True = panel dibuka (75% layar), false = terlipat (bilah ringkas).
+  final bool dibuka;
+  final VoidCallback saatToggle;
   final VoidCallback saatBuatPesanan;
 
-  /// Jika diisi, tampil tombol "Belum Bayar" di samping "Buat Pesanan".
+  /// Jika diisi, tampil tombol "Simpan Belum Bayar" di bawah "Buat Pesanan".
   /// Dikosongkan saat POS dibuka dari tagihan (pesanan sudah nempel tagihan).
   final VoidCallback? saatSimpanBelumBayar;
 
@@ -899,114 +916,200 @@ class _PanelKeranjang extends ConsumerWidget {
         border: Border(top: BorderSide(color: skema.outlineVariant)),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-            child: Row(
-              children: [
-                Text(
-                  'Keranjang',
-                  style: teks.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (baris.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: skema.primaryContainer,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '${baris.totalItem}',
-                      style: teks.labelSmall?.copyWith(
-                        color: skema.onPrimaryContainer,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                const Spacer(),
-                if (totalHemat > 0)
+      child: dibuka
+          ? _bangunIsiPenuh(context, ref, baris, teks, skema, totalHemat)
+          : _bangunBilahLipatan(context, baris, teks, skema),
+    );
+  }
+
+  /// Bilah ringkas saat panel terlipat: info keranjang + panah atas.
+  Widget _bangunBilahLipatan(
+    BuildContext context,
+    List<BarisKeranjang> baris,
+    TextTheme teks,
+    ColorScheme skema,
+  ) {
+    return InkWell(
+      onTap: saatToggle,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
+        child: Row(
+          children: [
+            Icon(
+              Icons.keyboard_arrow_up,
+              color: skema.primary,
+              size: 28,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    'Hemat ${formatRupiah(totalHemat)}',
-                    style: teks.bodySmall?.copyWith(
-                      color: WarnaWarkop.hijauAman,
+                    baris.isEmpty
+                        ? 'Keranjang kosong'
+                        : 'Keranjang • ${baris.totalItem} item',
+                    style: teks.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    formatRupiah(baris.totalHarga),
+                    style: teks.bodyMedium?.copyWith(
+                      color: skema.primary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
-          ),
-          Expanded(
-            child: baris.isEmpty
-                ? Center(
-                    child: Text(
-                      'Ketuk menu di atas untuk menambah ke keranjang.',
-                      textAlign: TextAlign.center,
-                      style: teks.bodyMedium?.copyWith(
-                        color: skema.onSurfaceVariant,
-                      ),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                    itemCount: baris.length,
-                    itemBuilder: (context, indeks) {
-                      final item = baris[indeks];
-                      return _BarisKeranjang(
-                        key: ValueKey(item.idBaris),
-                        baris: item,
-                      );
-                    },
+            if (baris.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: skema.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${baris.totalItem}',
+                  style: teks.labelMedium?.copyWith(
+                    color: skema.onPrimaryContainer,
+                    fontWeight: FontWeight.bold,
                   ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Total', style: teks.titleMedium),
-                    Text(
-                      formatRupiah(baris.totalHarga),
-                      style: teks.titleLarge?.copyWith(
-                        color: skema.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Isi penuh saat panel dibuka: daftar item + total + tombol aksi.
+  Widget _bangunIsiPenuh(
+    BuildContext context,
+    WidgetRef ref,
+    List<BarisKeranjang> baris,
+    TextTheme teks,
+    ColorScheme skema,
+    int totalHemat,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
+          child: Row(
+            children: [
+              Text(
+                'Keranjang',
+                style: teks.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (baris.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: skema.primaryContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${baris.totalItem}',
+                    style: teks.labelSmall?.copyWith(
+                      color: skema.onPrimaryContainer,
+                      fontWeight: FontWeight.bold,
                     ),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 10),
-                TombolKaca(
-                  label: 'Buat Pesanan',
-                  ikon: Icons.receipt_long_outlined,
-                  memuat: memproses,
-                  aktif: baris.isNotEmpty,
-                  saatDitekan: saatBuatPesanan,
+              const Spacer(),
+              if (totalHemat > 0)
+                Text(
+                  'Hemat ${formatRupiah(totalHemat)}',
+                  style: teks.bodySmall?.copyWith(
+                    color: WarnaWarkop.hijauAman,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                if (saatSimpanBelumBayar != null) ...[
-                  const SizedBox(height: 10),
-                  TombolKaca(
-                    label: 'Simpan Belum Bayar',
-                    ikon: Icons.bookmark_add_outlined,
-                    memuat: memproses,
-                    aktif: baris.isNotEmpty,
-                    saatDitekan: saatSimpanBelumBayar,
+              IconButton(
+                onPressed: saatToggle,
+                icon: const Icon(Icons.keyboard_arrow_down),
+                tooltip: 'Lipatkan keranjang',
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: baris.isEmpty
+              ? Center(
+                  child: Text(
+                    'Ketuk menu di atas untuk menambah ke keranjang.',
+                    textAlign: TextAlign.center,
+                    style: teks.bodyMedium?.copyWith(
+                      color: skema.onSurfaceVariant,
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  itemCount: baris.length,
+                  itemBuilder: (context, indeks) {
+                    final item = baris[indeks];
+                    return _BarisKeranjang(
+                      key: ValueKey(item.idBaris),
+                      baris: item,
+                    );
+                  },
+                ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Total', style: teks.titleMedium),
+                  Text(
+                    formatRupiah(baris.totalHarga),
+                    style: teks.titleLarge?.copyWith(
+                      color: skema.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 10),
+              TombolKaca(
+                label: 'Buat Pesanan',
+                ikon: Icons.receipt_long_outlined,
+                memuat: memproses,
+                aktif: baris.isNotEmpty,
+                saatDitekan: saatBuatPesanan,
+              ),
+              if (saatSimpanBelumBayar != null) ...[
+                const SizedBox(height: 10),
+                TombolKaca(
+                  label: 'Simpan Belum Bayar',
+                  ikon: Icons.bookmark_add_outlined,
+                  memuat: memproses,
+                  aktif: baris.isNotEmpty,
+                  saatDitekan: saatSimpanBelumBayar,
+                ),
               ],
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
