@@ -2,8 +2,10 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/tema/token_warna.dart';
+import '../../fitur/tagihan/layar_daftar_tagihan.dart';
 import 'nav_pill_bawah.dart';
 
 /// Bottom navigation pill khusus kasir.
@@ -11,7 +13,10 @@ import 'nav_pill_bawah.dart';
 /// 4 sentuhan: tombol tengah BESAR = Kasir (POS, aksi utama),
 /// 1 kiri = Tagihan, 2 kanan = Statistik + Akun.
 /// Gaya kaca sama dengan [NavPillBawah] agar konsisten.
-class NavPillKasir extends StatelessWidget {
+///
+/// Ikon Tagihan menampilkan badge jumlah tagihan terbuka (belum bayar)
+/// agar kasir langsung tahu siapa saja yang belum bayar.
+class NavPillKasir extends ConsumerWidget {
   const NavPillKasir({
     super.key,
     required this.indeksAktif,
@@ -53,11 +58,13 @@ class NavPillKasir extends StatelessWidget {
   int _cabangUntuk(bool kiri, int i) => kiri ? 1 : i + 2;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final gelap = Theme.of(context).brightness == Brightness.dark;
     final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
     final teksRedup =
         gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
+    final jumlahTagihan =
+        ref.watch(daftarOpenBillProvider).asData?.value.length ?? 0;
 
     return SafeArea(
       child: Padding(
@@ -99,7 +106,14 @@ class NavPillKasir extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
                             for (var i = 0; i < _kiri.length; i++)
-                              _tombolItem(context, true, i, aksen, teksRedup),
+                              _tombolItem(
+                                context,
+                                true,
+                                i,
+                                aksen,
+                                teksRedup,
+                                badge: jumlahTagihan,
+                              ),
                           ],
                         ),
                       ),
@@ -111,7 +125,13 @@ class NavPillKasir extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
                             for (var i = 0; i < _kanan.length; i++)
-                              _tombolItem(context, false, i, aksen, teksRedup),
+                              _tombolItem(
+                                context,
+                                false,
+                                i,
+                                aksen,
+                                teksRedup,
+                              ),
                           ],
                         ),
                       ),
@@ -168,8 +188,9 @@ class NavPillKasir extends StatelessWidget {
     bool kiri,
     int i,
     Color aksen,
-    Color teksRedup,
-  ) {
+    Color teksRedup, {
+    int badge = 0,
+  }) {
     final data = kiri ? _kiri[i] : _kanan[i];
     final cabang = _cabangUntuk(kiri, i);
     final aktif = indeksAktif == cabang;
@@ -189,10 +210,38 @@ class NavPillKasir extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              aktif ? (data.ikonAktif ?? data.ikon) : data.ikon,
-              color: aktif ? aksen : teksRedup,
-              size: 22,
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  aktif ? (data.ikonAktif ?? data.ikon) : data.ikon,
+                  color: aktif ? aksen : teksRedup,
+                  size: 22,
+                ),
+                if (badge > 0)
+                  Positioned(
+                    right: -8,
+                    top: -6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: WarnaWarkop.merahMenyala,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        badge > 99 ? '99+' : '$badge',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 2),
             // FittedBox: label tidak boleh kepotong di layar sempit.
