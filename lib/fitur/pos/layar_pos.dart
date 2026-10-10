@@ -50,8 +50,8 @@ class _DiskonItem {
 
 /// Layar kasir POS: pilih menu/paket, masukkan keranjang, buat pesanan.
 ///
-/// Tata letak: 55% atas = grid menu (foto + search + filter kategori),
-/// 45% bawah = panel keranjang yang mudah dijangkau jempol. Diskon per
+/// Tata letak: 50% atas = grid menu (foto + search + filter kategori),
+/// 50% bawah = panel keranjang yang mudah dijangkau jempol. Diskon per
 /// item diatur dari panel keranjang.
 class LayarPos extends ConsumerStatefulWidget {
   const LayarPos({super.key, this.idTagihan});
@@ -296,9 +296,9 @@ class _LayarPosState extends ConsumerState<LayarPos> {
                         _bangunKategori(
                           daftarKategori: kategoriAsync.value ?? const [],
                         ),
-                        // 55% atas: grid menu.
+                        // 50% atas: grid menu.
                         Flexible(
-                          flex: 55,
+                          flex: 50,
                           child: _modeKombo
                               ? _GridPaket(
                                   daftarPaket: _paketTampil(
@@ -313,9 +313,9 @@ class _LayarPosState extends ConsumerState<LayarPos> {
                                   saatTap: _tambahMenu,
                                 ),
                         ),
-                        // 45% bawah: panel keranjang (zona jempol).
+                        // 50% bawah: panel keranjang (zona jempol).
                         Flexible(
-                          flex: 45,
+                          flex: 50,
                           child: _PanelKeranjang(
                             memproses: _memproses,
                             saatBuatPesanan: _buatPesanan,
