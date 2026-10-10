@@ -7,6 +7,7 @@ import '../../app/tema/token_tipografi.dart';
 import '../../app/router.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
+import '../../bersama/util/hitung_diskon.dart';
 import '../../bersama/util/id_unik.dart';
 import '../../bersama/widget/kartu_kaca.dart';
 import '../../bersama/widget/tombol_kaca.dart';
@@ -237,7 +238,10 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
       builder: (ctx) => Padding(
         padding:
             EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: _LembarRincian(pesanan: pesanan),
+        child: _LembarRincian(
+          pesanan: pesanan,
+          saatBerubah: _segarkan,
+        ),
       ),
     );
   }
@@ -734,9 +738,102 @@ class _ChipStatus extends StatelessWidget {
 
 /// Bottom sheet daftar rincian satu nota (nama × jumlah = subtotal + catatan).
 class _LembarRincian extends ConsumerWidget {
-  const _LembarRincian({required this.pesanan});
+  const _LembarRincian({required this.pesanan, this.saatBerubah});
 
   final Pesanan pesanan;
+
+  /// Dipanggil setelah item diubah/dihapus agar induk menyegarkan total.
+  final VoidCallback? saatBerubah;
+
+  /// True bila nota masih boleh diedit (belum dibayar/dibatalkan).
+  bool get _bisaEdit => pesanan.status == 'baru';
+
+  Future<void> _ubahJumlah(
+    BuildContext context,
+    WidgetRef ref,
+    PesananRincian r,
+    int delta,
+  ) async {
+    final jumlahBaru = r.jumlah + delta;
+    if (jumlahBaru < 1) return;
+    HapticFeedback.lightImpact();
+    try {
+      final bruto = r.hargaSnapshot * jumlahBaru;
+      final potongan = hitungPotongan(
+        bruto,
+        nominal: r.diskonNominal,
+        persen: r.diskonPersen,
+      );
+      await DatabaseLokal.instance.simpanRincian(
+        r.copyWith(
+          jumlah: jumlahBaru,
+          subtotal: bruto - potongan,
+          diperbaruiPada: DateTime.now(),
+        ),
+      );
+      await _sinkronkanTotal(ref);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal mengubah jumlah. Coba lagi.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _hapusItem(
+    BuildContext context,
+    WidgetRef ref,
+    PesananRincian r,
+  ) async {
+    final yakin = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus item?'),
+        content: Text('${r.namaSnapshot} akan dihapus dari nota ini.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (yakin != true) return;
+    HapticFeedback.mediumImpact();
+    try {
+      await DatabaseLokal.instance.hapusRincian(r.id);
+      await _sinkronkanTotal(ref);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal menghapus item. Coba lagi.')),
+        );
+      }
+    }
+  }
+
+  /// Hitung ulang total pesanan dari seluruh rincian lalu simpan.
+  Future<void> _sinkronkanTotal(WidgetRef ref) async {
+    final db = DatabaseLokal.instance;
+    final daftar = await db.daftarRincianPesanan(pesanan.id);
+    final totalBaru = daftar.fold(0, (t, r) => t + r.subtotal);
+    final terkini = await db.ambilPesanan(pesanan.id);
+    if (terkini != null) {
+      await db.perbaruiPesanan(
+        terkini.copyWith(
+          total: totalBaru,
+          diperbaruiPada: DateTime.now(),
+        ),
+      );
+    }
+    ref.invalidate(rincianPesananProvider(pesanan.id));
+    saatBerubah?.call();
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -783,39 +880,88 @@ class _LembarRincian extends ConsumerWidget {
                           const Divider(height: 16),
                       itemBuilder: (context, i) {
                         final r = daftar[i];
-                        return Row(
+                        return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${r.namaSnapshot} × ${r.jumlah}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                                fontWeight: FontWeight.w600),
+                                      ),
+                                      if (r.catatan != null &&
+                                          r.catatan!.isNotEmpty)
+                                        Text(
+                                          r.catatan!,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(color: teksSekunder),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  formatRupiah(r.subtotal),
+                                  style: TipografiWarkop.nominal,
+                                ),
+                              ],
+                            ),
+                            if (_bisaEdit) ...[
+                              const SizedBox(height: 6),
+                              Row(
                                 children: [
+                                  IconButton(
+                                    onPressed: () =>
+                                        _ubahJumlah(context, ref, r, -1),
+                                    icon: const Icon(
+                                        Icons.remove_circle_outline),
+                                    tooltip: 'Kurangi',
+                                    visualDensity:
+                                        VisualDensity.compact,
+                                  ),
                                   Text(
-                                    '${r.namaSnapshot} × ${r.jumlah}',
+                                    '${r.jumlah}',
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodyMedium
                                         ?.copyWith(
-                                            fontWeight: FontWeight.w600),
+                                            fontWeight: FontWeight.w700),
                                   ),
-                                  if (r.catatan != null &&
-                                      r.catatan!.isNotEmpty)
-                                    Text(
-                                      r.catatan!,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(color: teksSekunder),
-                                    ),
+                                  IconButton(
+                                    onPressed: () =>
+                                        _ubahJumlah(context, ref, r, 1),
+                                    icon:
+                                        const Icon(Icons.add_circle_outline),
+                                    tooltip: 'Tambah',
+                                    visualDensity:
+                                        VisualDensity.compact,
+                                  ),
+                                  const Spacer(),
+                                  IconButton(
+                                    onPressed: () =>
+                                        _hapusItem(context, ref, r),
+                                    icon: const Icon(
+                                        Icons.delete_outline),
+                                    color: WarnaWarkop.merahMenyala,
+                                    tooltip: 'Hapus item',
+                                    visualDensity:
+                                        VisualDensity.compact,
+                                  ),
                                 ],
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              formatRupiah(r.subtotal),
-                              style: TipografiWarkop.nominal,
-                            ),
+                            ],
                           ],
                         );
                       },

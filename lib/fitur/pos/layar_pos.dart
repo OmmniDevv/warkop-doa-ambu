@@ -985,41 +985,23 @@ class _PanelKeranjang extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 10),
-                if (saatSimpanBelumBayar != null)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TombolKaca(
-                          label: 'Belum Bayar',
-                          ikon: Icons.bookmark_add_outlined,
-                          lebarPenuh: false,
-                          memuat: memproses,
-                          aktif: baris.isNotEmpty,
-                          saatDitekan: saatSimpanBelumBayar,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: TombolKaca(
-                          label: 'Buat Pesanan',
-                          ikon: Icons.receipt_long_outlined,
-                          lebarPenuh: false,
-                          memuat: memproses,
-                          aktif: baris.isNotEmpty,
-                          saatDitekan: saatBuatPesanan,
-                        ),
-                      ),
-                    ],
-                  )
-                else
+                TombolKaca(
+                  label: 'Buat Pesanan',
+                  ikon: Icons.receipt_long_outlined,
+                  memuat: memproses,
+                  aktif: baris.isNotEmpty,
+                  saatDitekan: saatBuatPesanan,
+                ),
+                if (saatSimpanBelumBayar != null) ...[
+                  const SizedBox(height: 10),
                   TombolKaca(
-                    label: 'Buat Pesanan',
-                    ikon: Icons.receipt_long_outlined,
+                    label: 'Simpan Belum Bayar',
+                    ikon: Icons.bookmark_add_outlined,
                     memuat: memproses,
                     aktif: baris.isNotEmpty,
-                    saatDitekan: saatBuatPesanan,
+                    saatDitekan: saatSimpanBelumBayar,
                   ),
+                ],
               ],
             ),
           ),
