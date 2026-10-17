@@ -1277,59 +1277,66 @@ class _UbinBarisBayar extends StatelessWidget {
     final tema = Theme.of(context);
 
     return KartuWarkop(
-                        padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SegmentedButton<_Metode>(
-            segments: const [
-              ButtonSegment(
-                value: _Metode.tunai,
-                label: Text('Tunai'),
+          Row(
+            children: [
+              Expanded(
+                child: SegmentedButton<_Metode>(
+                  segments: const [
+                    ButtonSegment(
+                      value: _Metode.tunai,
+                      label: Text('Tunai'),
+                    ),
+                    ButtonSegment(
+                      value: _Metode.nonTunai,
+                      label: Text('Non-Tunai'),
+                    ),
+                  ],
+                  selected: {baris.metode},
+                  onSelectionChanged: (pilihan) =>
+                      saatUbahMetode(pilihan.first),
+                  style: const ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
               ),
-              ButtonSegment(
-                value: _Metode.nonTunai,
-                label: Text('Non-Tunai'),
-              ),
+              if (bisaHapus)
+                IconButton(
+                  tooltip: 'Hapus baris',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: saatHapus,
+                ),
             ],
-            selected: {baris.metode},
-            onSelectionChanged: (pilihan) =>
-                saatUbahMetode(pilihan.first),
-            style: const ButtonStyle(
-              visualDensity: VisualDensity.compact,
-            ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: InkWell(
-              onTap: saatUbahNominal,
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 12,
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: saatUbahNominal,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: tema.colorScheme.outlineVariant,
                 ),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: tema.colorScheme.outlineVariant,
-                  ),
-                  borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                formatRupiah(baris.nominal),
+                style: tema.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
-                child: Text(
-                  formatRupiah(baris.nominal),
-                  style: tema.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                  textAlign: TextAlign.right,
-                ),
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ),
-          if (bisaHapus)
-            IconButton(
-              tooltip: 'Hapus baris',
-              icon: const Icon(Icons.delete_outline),
-              onPressed: saatHapus,
-            ),
         ],
       ),
     );
