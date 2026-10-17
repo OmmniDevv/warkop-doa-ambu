@@ -217,9 +217,16 @@ class _LayarPosState extends ConsumerState<LayarPos> {
   }
 
   /// Alur normal: buat pesanan lalu lanjut ke layar bayar.
+  /// Bila dari open bill ([idTagihan] diisi): tempel ke tagihan lalu
+  /// kembali ke detail tagihan (bukan ke layar bayar).
   Future<void> _buatPesanan() async {
     final id = await _simpanPesanan(widget.idTagihan);
-    if (id != null && mounted) context.go('/bayar/$id');
+    if (id == null || !mounted) return;
+    if (widget.idTagihan != null) {
+      context.go('/tagihan/${widget.idTagihan}');
+    } else {
+      context.go('/bayar/$id');
+    }
   }
 
   /// Simpan keranjang sebagai tagihan "belum bayar" (open bill baru).
@@ -276,6 +283,7 @@ class _LayarPosState extends ConsumerState<LayarPos> {
       judul: 'Nota',
       child: _LembarNota(
         memproses: _memproses,
+        modeTagihan: widget.idTagihan != null,
         saatBuatPesanan: _buatPesanan,
         saatSimpanBelumBayar:
             widget.idTagihan == null ? _simpanBelumBayar : null,
@@ -1079,11 +1087,16 @@ class _LembarNota extends ConsumerWidget {
     required this.memproses,
     required this.saatBuatPesanan,
     this.saatSimpanBelumBayar,
+    this.modeTagihan = false,
   });
 
   final bool memproses;
   final VoidCallback saatBuatPesanan;
   final VoidCallback? saatSimpanBelumBayar;
+
+  /// True bila nota dibuat dari open bill — tombol utama jadi
+  /// "Tambah ke Tagihan" (bukan "Bayar").
+  final bool modeTagihan;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1177,8 +1190,10 @@ class _LembarNota extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           TombolWarkop(
-            label: 'Bayar',
-            ikon: Icons.receipt_long_outlined,
+            label: modeTagihan ? 'Tambah ke Tagihan' : 'Bayar',
+            ikon: modeTagihan
+                ? Icons.add_shopping_cart_outlined
+                : Icons.receipt_long_outlined,
             memuat: memproses,
             saatDitekan: baris.isEmpty ? null : saatBuatPesanan,
           ),

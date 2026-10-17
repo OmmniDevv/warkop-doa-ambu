@@ -257,6 +257,13 @@ GoRouter bangunRouter(Ref ref) {
                 path: Rute.kasirPos,
                 builder: (context, state) => const LayarPos(),
               ),
+              // Tambah pesanan ke open bill: /k/pos/tagihan/:idTagihan
+              GoRoute(
+                path: '${Rute.kasirPos}/tagihan/:idTagihan',
+                builder: (context, state) => LayarPos(
+                  idTagihan: state.pathParameters['idTagihan'],
+                ),
+              ),
             ],
           ),
           StatefulShellBranch(

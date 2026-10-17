@@ -335,7 +335,11 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
     final totalTagihan = daftar
         .where((p) => p.status != 'void')
         .fold<int>(0, (s, p) => s + p.total);
-    final bisaTutup = tagihan.status == 'buka' && daftarBaru.isEmpty;
+    // Tombol "Tutup Tagihan" SELALU tampil untuk tagihan terbuka (jangan
+    // disembunyikan) — nonaktif bila masih ada nota belum bayar, agar user
+    // paham kenapa belum bisa ditutup (bug: tombol hilang total).
+    final tagihanBuka = tagihan.status == 'buka';
+    final bisaTutup = tagihanBuka && daftarBaru.isEmpty;
 
     return Column(
       children: [
@@ -393,19 +397,28 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
                 },
               ),
               const SizedBox(height: 12),
-              if (bisaTutup)
+              if (tagihanBuka) ...[
                 TombolWarkop(
                   label: 'Tutup Tagihan',
                   ikon: Icons.lock_outline,
                   memuat: _memuat,
-                  saatDitekan: () => _tutupTagihan(tagihan, daftar),
-                )
-              else
+                  // null = nonaktif bila masih ada nota belum bayar.
+                  saatDitekan: bisaTutup
+                      ? () => _tutupTagihan(tagihan, daftar)
+                      : null,
+                ),
+                if (!bisaTutup) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Selesaikan dulu ${daftarBaru.length} nota belum bayar '
+                    '(bayar atau batalkan) sebelum menutup tagihan.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ] else
                 Text(
-                  daftarBaru.isEmpty
-                      ? 'Tagihan sudah ditutup.'
-                      : 'Tutup tagihan aktif setelah semua nota lunas '
-                          'atau dibatalkan.',
+                  'Tagihan sudah ditutup.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
