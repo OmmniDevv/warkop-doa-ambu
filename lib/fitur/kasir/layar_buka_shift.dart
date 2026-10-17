@@ -5,13 +5,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/penyedia.dart';
 import '../../app/router.dart';
-import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/id_unik.dart';
-import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_kosong.dart';
 import '../../bersama/widget/tombol_tema.dart';
 import '../../bersama/widget/keypad_angka.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/model/akun.dart';
 import '../../data/model/log_audit.dart';
 import '../../data/model/shift_kasir.dart';
@@ -85,53 +85,36 @@ class _LayarBukaShiftState extends ConsumerState<LayarBukaShift> {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
     final kasir = ref.watch(sesiKasirProvider);
 
     if (kasir == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('BUKA SHIFT'), actions: const [TombolTema()]),
+        appBar: AppBar(
+          title: const Text('Buka Shift'),
+          actions: const [TombolTema()],
+        ),
         body: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.lock_outline, size: 64, color: aksen),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Kamu belum masuk sebagai kasir.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        context.go('/kasir');
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: aksen,
-                        side: BorderSide(color: aksen),
-                        minimumSize: const Size(0, 52),
-                      ),
-                      child: const Text('Pilih Kasir'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          child: StatusKosong(
+            judul: 'Belum masuk',
+            deskripsi: 'Kamu belum masuk sebagai kasir.',
+            inisial: '!',
+            labelAksi: 'Pilih Kasir',
+            saatAksi: () {
+              HapticFeedback.lightImpact();
+              context.go('/kasir');
+            },
           ),
         ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('BUKA SHIFT'), actions: const [TombolTema()]),
+      appBar: AppBar(
+        title: const Text('Buka Shift'),
+        actions: const [TombolTema()],
+      ),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -139,23 +122,23 @@ class _LayarBukaShiftState extends ConsumerState<LayarBukaShift> {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                child: KartuKaca(
-                  tanpaBlur: true,
-                  bayangan: false,
+                child: KartuWarkop(
                   child: Column(
                     children: [
                       Text(
                         'Saldo Awal Kas',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(color: aksen),
+                        style: gayaTeks.titleMedium?.copyWith(
+                          color: skema.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 6),
                       Text(
                         'Halo, ${kasir.nama}! Hitung uang di laci lalu masukkan nominalnya.',
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        style: gayaTeks.bodyMedium?.copyWith(
+                          color: skema.onSurfaceVariant,
+                        ),
                       ),
                       const SizedBox(height: 20),
                       Container(
@@ -163,18 +146,15 @@ class _LayarBukaShiftState extends ConsumerState<LayarBukaShift> {
                         padding: const EdgeInsets.symmetric(vertical: 20),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
-                          color: aksen.withValues(alpha: 0.08),
+                          color: skema.primary.withValues(alpha: 0.08),
                         ),
                         child: Text(
                           formatRupiah(_nilai),
                           textAlign: TextAlign.center,
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineMedium
-                              ?.copyWith(
-                                color: aksen,
-                                fontWeight: FontWeight.bold,
-                              ),
+                          style: gayaTeks.headlineMedium?.copyWith(
+                            color: skema.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
@@ -192,7 +172,7 @@ class _LayarBukaShiftState extends ConsumerState<LayarBukaShift> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              child: TombolKaca(
+              child: TombolWarkop(
                 label: 'Buka Shift',
                 ikon: Icons.lock_open_outlined,
                 memuat: _memproses,

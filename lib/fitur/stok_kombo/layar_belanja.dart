@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/tema/token_warna.dart';
 import '../../bersama/util/id_unik.dart';
-import '../../bersama/widget/kartu_kaca.dart';
-import '../../bersama/widget/orb_latar.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/bahan.dart';
 import '../../data/model/log_audit.dart';
@@ -29,17 +29,15 @@ class LayarBelanja extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('DAFTAR BELANJA')),
-      body: OrbLatar(
-        child: SafeArea(
-          child: bahanAsync.when(
-            data: (daftar) {
-              final menipis =
-                  daftar.where((b) => b.menipis).toList();
-              return _IsiBelanja(daftar: menipis);
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) =>
-                Center(child: Text('Gagal memuat bahan: $e')),
+      body: SafeArea(
+        child: bahanAsync.when(
+          data: (daftar) {
+            final menipis = daftar.where((b) => b.menipis).toList();
+            return _IsiBelanja(daftar: menipis);
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => StatusError(
+            saatCobaLagi: () => ref.invalidate(penyediaDaftarBahan),
           ),
         ),
       ),
@@ -60,9 +58,7 @@ class _IsiBelanja extends ConsumerWidget {
     HapticFeedback.lightImpact();
     final saran = saranBeliBahan(bahan);
     final kontrol = TextEditingController(
-      text: saran == saran.roundToDouble()
-          ? '${saran.toInt()}'
-          : '$saran',
+      text: saran == saran.roundToDouble() ? '${saran.toInt()}' : '$saran',
     );
 
     final jumlah = await showModalBottomSheet<double>(
@@ -81,10 +77,9 @@ class _IsiBelanja extends ConsumerWidget {
           children: [
             Text(
               'Sudah dibeli: ${bahan.nama}',
-              style: Theme.of(ctx)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w700),
+              style: Theme.of(
+                ctx,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 4),
             Text(
@@ -107,15 +102,14 @@ class _IsiBelanja extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 16),
-            FilledButton(
-              onPressed: () {
-                final nilai = double.tryParse(
-                      kontrol.text.trim().replaceAll(',', '.'),
-                    ) ??
+            TombolWarkop(
+              label: 'Tambah ke Stok',
+              saatDitekan: () {
+                final nilai =
+                    double.tryParse(kontrol.text.trim().replaceAll(',', '.')) ??
                     0;
                 Navigator.of(ctx).pop(nilai);
               },
-              child: const Text('Tambah ke Stok'),
             ),
           ],
         ),
@@ -149,9 +143,9 @@ class _IsiBelanja extends ConsumerWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menambah stok: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal menambah stok: $e')));
       }
     }
   }
@@ -161,28 +155,17 @@ class _IsiBelanja extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
+
     if (daftar.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(20),
-        child: KartuKaca(
-          tanpaBlur: true,
-          border: null,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Semua bahan aman 🎉',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Tidak ada bahan yang menipis. '
-                'Daftar belanja akan muncul otomatis saat stok mencapai batas minimum.',
-              ),
-            ],
-          ),
-        ),
+      return const StatusKosong(
+        judul: 'Semua bahan aman',
+        deskripsi:
+            'Tidak ada bahan yang menipis. '
+            'Daftar belanja akan muncul otomatis saat stok mencapai '
+            'batas minimum.',
+        inisial: 'B',
       );
     }
 
@@ -191,13 +174,33 @@ class _IsiBelanja extends ConsumerWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-          child: KartuKaca(
-            tanpaBlur: true,
-            border: WarnaWarkop.kuningAntre.withValues(alpha: 0.45),
-            child: Text(
-              '${daftar.length} bahan perlu dibeli — saran jumlahnya '
-              'dihitung otomatis, tinggal sesuaikan.',
-              style: Theme.of(context).textTheme.bodyMedium,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(17),
+              border: Border.all(
+                color: skema.tertiary.withValues(alpha: 0.45),
+                width: 1.5,
+              ),
+            ),
+            child: KartuWarkop(
+              margin: const EdgeInsets.all(1.5),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.shopping_cart_outlined,
+                    color: skema.tertiary,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      '${daftar.length} bahan perlu dibeli — saran jumlahnya '
+                      'dihitung otomatis, tinggal sesuaikan.',
+                      style: gayaTeks.bodyMedium,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -210,78 +213,88 @@ class _IsiBelanja extends ConsumerWidget {
               final saran = saranBeliBahan(b);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: KartuKaca(
-                  tanpaBlur: true,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(17),
+                    border: Border.all(
+                      color: skema.tertiary.withValues(alpha: 0.45),
+                      width: 1.5,
+                    ),
                   ),
-                  border: WarnaWarkop.kuningAntre.withValues(alpha: 0.45),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              b.nama,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: WarnaWarkop.kuningAntre
-                                  .withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: WarnaWarkop.kuningAntre
-                                    .withValues(alpha: 0.5),
+                  child: KartuWarkop(
+                    margin: const EdgeInsets.all(1.5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                b.nama,
+                                style: gayaTeks.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
-                            child: Text(
-                              'Menipis',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
-                                  ?.copyWith(
-                                    color: WarnaWarkop.kuningAntre,
-                                    fontWeight: FontWeight.w700,
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: skema.tertiary.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: skema.tertiary.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.warning_amber_rounded,
+                                    size: 14,
+                                    color: skema.tertiary,
                                   ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Menipis',
+                                    style: gayaTeks.labelSmall?.copyWith(
+                                      color: skema.tertiary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Stok: ${_tampil(b.stok)} ${b.satuan} · '
+                          'min. ${_tampil(b.stokMinimum)} ${b.satuan}',
+                          style: gayaTeks.bodyMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Saran beli: ${_tampil(saran)} ${b.satuan}',
+                          style: gayaTeks.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: skema.primary,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Stok: ${_tampil(b.stok)} ${b.satuan} · '
-                        'min. ${_tampil(b.stokMinimum)} ${b.satuan}',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Saran beli: ${_tampil(saran)} ${b.satuan}',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: WarnaWarkop.aksenTerang,
-                            ),
-                      ),
-                      const SizedBox(height: 10),
-                      TombolKaca(
-                        label: 'Sudah Dibeli',
-                        ikon: Icons.shopping_cart_outlined,
-                        saatDitekan: () => _sudahDibeli(context, ref, b),
-                      ),
-                    ],
+                        ),
+                        const SizedBox(height: 10),
+                        TombolWarkop(
+                          label: 'Sudah Dibeli',
+                          ikon: Icons.shopping_cart_outlined,
+                          saatDitekan: () => _sudahDibeli(context, ref, b),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );

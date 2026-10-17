@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/tema/token_tipografi.dart';
 import '../../app/router.dart';
-import '../../app/tema/token_warna.dart';
 import '../../bersama/util/id_unik.dart';
-import '../../bersama/widget/kartu_kaca.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/chip_warkop.dart';
+import '../../bersama/widget/input_warkop.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/open_bill.dart';
 import '../kasir/penyedia_kasir.dart';
@@ -93,10 +93,7 @@ class _LayarTagihanBaruState extends ConsumerState<LayarTagihanBaru> {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    final teksSekunder =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
+    final skema = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -128,12 +125,11 @@ class _LayarTagihanBaruState extends ConsumerState<LayarTagihanBaru> {
                       runSpacing: 10,
                       children: [
                         for (final meja in _daftarMeja)
-                          _ChipMeja(
+                          ChipWarkop(
                             label: meja,
                             terpilih: _kontrolNama.text.isEmpty &&
                                 meja == _mejaTerpilih,
-                            onTap: () {
-                              HapticFeedback.lightImpact();
+                            saatDitekan: () {
                               setState(() {
                                 _mejaTerpilih = meja;
                                 _kontrolNama.clear();
@@ -151,28 +147,11 @@ class _LayarTagihanBaruState extends ConsumerState<LayarTagihanBaru> {
                           ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 12),
-                    KartuKaca(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 4),
-                      radius: 16,
-                      tanpaBlur: true,
-                      child: TextField(
-                        controller: _kontrolNama,
-                        textInputAction: TextInputAction.done,
-                        decoration: InputDecoration(
-                          hintText: 'cth: Pak Budi',
-                          hintStyle: TextStyle(color: teksSekunder),
-                          border: InputBorder.none,
-                          suffixIcon: _kontrolNama.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear, size: 20),
-                                  onPressed: () =>
-                                      setState(_kontrolNama.clear),
-                                )
-                              : null,
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
+                    InputWarkop(
+                      controller: _kontrolNama,
+                      petunjuk: 'cth: Pak Budi',
+                      aksiSelesai: TextInputAction.done,
+                      saatBerubah: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -180,14 +159,13 @@ class _LayarTagihanBaruState extends ConsumerState<LayarTagihanBaru> {
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
-                          ?.copyWith(color: teksSekunder),
+                          ?.copyWith(color: skema.onSurfaceVariant),
                     ),
                     const SizedBox(height: 24),
-                    KartuKaca(
-                      tanpaBlur: true,
-                      child: Row(
+                    KartuWarkop(
+                                            child: Row(
                         children: [
-                          Icon(Icons.receipt_long, color: aksen, size: 28),
+                          Icon(Icons.receipt_long, color: skema.primary, size: 28),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -198,14 +176,14 @@ class _LayarTagihanBaruState extends ConsumerState<LayarTagihanBaru> {
                                   style: Theme.of(context)
                                       .textTheme
                                       .bodySmall
-                                      ?.copyWith(color: teksSekunder),
+                                      ?.copyWith(color: skema.onSurfaceVariant),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   _labelFinal,
                                   style: TipografiWarkop.judulBrand.copyWith(
                                     fontSize: 20,
-                                    color: aksen,
+                                    color: skema.primary,
                                   ),
                                 ),
                               ],
@@ -220,11 +198,11 @@ class _LayarTagihanBaruState extends ConsumerState<LayarTagihanBaru> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              child: TombolKaca(
+              child: TombolWarkop(
                 label: 'Buat Tagihan',
                 ikon: Icons.add_circle_outline,
                 memuat: _memuat,
-                saatDitekan: _buatTagihan,
+                saatDitekan: _memuat ? null : _buatTagihan,
               ),
             ),
           ],
@@ -234,55 +212,3 @@ class _LayarTagihanBaruState extends ConsumerState<LayarTagihanBaru> {
   }
 }
 
-/// Chip pilihan meja — visual kaca, tanpa animasi layout.
-class _ChipMeja extends StatelessWidget {
-  const _ChipMeja({
-    required this.label,
-    required this.terpilih,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool terpilih;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    final teksSekunder =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 160),
-        opacity: terpilih ? 1.0 : 0.75,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: terpilih
-                ? aksen.withValues(alpha: 0.14)
-                : (gelap ? WarnaWarkop.kacaGelap : WarnaWarkop.kacaTerang),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: terpilih
-                  ? aksen
-                  : (gelap
-                      ? WarnaWarkop.borderKacaGelap
-                      : WarnaWarkop.borderKacaTerang),
-              width: terpilih ? 1.6 : 1,
-            ),
-          ),
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: terpilih ? aksen : teksSekunder,
-                  fontWeight: terpilih ? FontWeight.w700 : FontWeight.w500,
-                ),
-          ),
-        ),
-      ),
-    );
-  }
-}

@@ -6,13 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/penyedia.dart';
-import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/id_unik.dart';
-import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
 import '../../bersama/widget/tombol_tema.dart';
 import '../../bersama/widget/keypad_angka.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/model/akun.dart';
 import '../../data/model/log_audit.dart';
 import '../../data/model/shift_kasir.dart';
@@ -45,6 +46,9 @@ class LayarTutupShift extends ConsumerStatefulWidget {
 class _LayarTutupShiftState extends ConsumerState<LayarTutupShift> {
   String _fisik = '';
   bool _memproses = false;
+
+  /// Penghitung untuk memaksa FutureBuilder memuat ulang saat "Coba lagi".
+  int _kunciMuat = 0;
 
   int get _nilaiFisik => _fisik.isEmpty ? 0 : int.parse(_fisik);
 
@@ -126,79 +130,57 @@ class _LayarTutupShiftState extends ConsumerState<LayarTutupShift> {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
     final shift = ref.watch(shiftAktifProvider);
     final kasir = ref.watch(sesiKasirProvider);
 
     if (shift == null || kasir == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('TUTUP SHIFT'), actions: const [TombolTema()]),
+        appBar: AppBar(
+          title: const Text('Tutup Shift'),
+          actions: const [TombolTema()],
+        ),
         body: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.schedule_outlined, size: 64, color: aksen),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Tidak ada shift yang sedang dibuka.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        context.go('/kasir');
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: aksen,
-                        side: BorderSide(color: aksen),
-                        minimumSize: const Size(0, 52),
-                      ),
-                      child: const Text('Pilih Kasir'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          child: StatusKosong(
+            judul: 'Tidak ada shift aktif',
+            deskripsi: 'Tidak ada shift yang sedang dibuka.',
+            inisial: '!',
+            labelAksi: 'Pilih Kasir',
+            saatAksi: () {
+              HapticFeedback.lightImpact();
+              context.go('/kasir');
+            },
           ),
         ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('TUTUP SHIFT'), actions: const [TombolTema()]),
+      appBar: AppBar(
+        title: const Text('Tutup Shift'),
+        actions: const [TombolTema()],
+      ),
       body: SafeArea(
         child: FutureBuilder<_RingkasanShift>(
+          key: ValueKey(_kunciMuat),
           future: _muatRingkasan(shift),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Text(
-                    'Gagal menghitung ringkasan shift. Coba lagi ya.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
+              return StatusError(
+                pesan: 'Gagal menghitung ringkasan shift. Coba lagi ya.',
+                saatCobaLagi: () =>
+                    setState(() => _kunciMuat++),
               );
             }
 
             final ringkasan = snapshot.data!;
             final selisih = _nilaiFisik - ringkasan.kasSistem;
-            final warnaSelisih = selisih == 0
-                ? WarnaWarkop.hijauAman
-                : WarnaWarkop.merahMenyala;
+            final warnaSelisih =
+                selisih == 0 ? skema.secondary : skema.error;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -208,18 +190,16 @@ class _LayarTutupShiftState extends ConsumerState<LayarTutupShift> {
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                     child: Column(
                       children: [
-                        KartuKaca(
-                          tanpaBlur: true,
-                          bayangan: false,
+                        KartuWarkop(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Text(
                                 'Ringkasan Kas',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(color: aksen),
+                                style: gayaTeks.titleMedium?.copyWith(
+                                  color: skema.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                               const SizedBox(height: 12),
                               _BarisRingkasan(
@@ -246,25 +226,22 @@ class _LayarTutupShiftState extends ConsumerState<LayarTutupShift> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        KartuKaca(
-                          tanpaBlur: true,
-                          bayangan: false,
+                        KartuWarkop(
                           child: Column(
                             children: [
                               Text(
                                 'Kas Fisik (hitung di laci)',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(color: aksen),
+                                style: gayaTeks.titleMedium?.copyWith(
+                                  color: skema.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                               const SizedBox(height: 12),
                               Text(
                                 formatRupiah(_nilaiFisik),
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineMedium
-                                    ?.copyWith(fontWeight: FontWeight.bold),
+                                style: gayaTeks.headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                               const SizedBox(height: 12),
                               Container(
@@ -292,13 +269,10 @@ class _LayarTutupShiftState extends ConsumerState<LayarTutupShift> {
                                     const SizedBox(width: 8),
                                     Text(
                                       'Selisih: ${formatRupiah(selisih)}',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelLarge
-                                          ?.copyWith(
-                                            color: warnaSelisih,
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                      style: gayaTeks.labelLarge?.copyWith(
+                                        color: warnaSelisih,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -320,7 +294,7 @@ class _LayarTutupShiftState extends ConsumerState<LayarTutupShift> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                  child: TombolKaca(
+                  child: TombolWarkop(
                     label: 'Tutup Shift',
                     ikon: Icons.lock_outline,
                     memuat: _memproses,

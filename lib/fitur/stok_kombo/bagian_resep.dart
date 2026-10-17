@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/tema/token_warna.dart';
 import '../../bersama/util/id_unik.dart';
-import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/bahan.dart';
 import '../../data/model/resep.dart';
@@ -51,8 +50,7 @@ class BagianResep extends ConsumerWidget {
         const SizedBox(height: 4),
         resepAsync.when(
           data: (daftar) => daftar.isEmpty
-              ? const KartuKaca(
-                  tanpaBlur: true,
+              ? const KartuWarkop(
                   child: Text(
                     'Belum ada resep. Menu ini tidak mengurangi stok bahan.',
                     style: TextStyle(fontSize: 13),
@@ -241,8 +239,7 @@ class _BarisResep extends StatelessWidget {
         ? '${takaran.toInt()}'
         : '$takaran';
 
-    return KartuKaca(
-      tanpaBlur: true,
+    return KartuWarkop(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
         children: [
@@ -256,7 +253,7 @@ class _BarisResep extends StatelessWidget {
             '$takaranTeks ${resep.satuan}',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: WarnaWarkop.aksenTerang,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
           ),
           IconButton(

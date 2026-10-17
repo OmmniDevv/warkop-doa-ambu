@@ -5,9 +5,8 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../app/router.dart';
 import '../../app/tema/token_warna.dart';
-import '../../bersama/widget/kartu_kaca.dart';
-import '../../bersama/widget/orb_latar.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import 'layanan_izin.dart';
 
 /// Layar penjelasan izin di awal setelah login.
@@ -77,14 +76,13 @@ class _LayarIzinAwalState extends State<LayarIzinAwal> {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    final teksRedup =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
+    final skema = Theme.of(context).colorScheme;
+    final aksen = skema.primary;
+    final teksRedup = skema.onSurfaceVariant;
 
     return Scaffold(
-      body: OrbLatar(
-        child: SafeArea(
+      backgroundColor: skema.surface,
+      body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
             child: Column(
@@ -143,7 +141,7 @@ class _LayarIzinAwalState extends State<LayarIzinAwal> {
                         ),
                 ),
                 const SizedBox(height: 12),
-                TombolKaca(
+                TombolWarkop(
                   label: 'Izinkan Semua',
                   ikon: Icons.check_circle_outline,
                   memuat: _memproses,
@@ -158,7 +156,6 @@ class _LayarIzinAwalState extends State<LayarIzinAwal> {
             ),
           ),
         ),
-      ),
     );
   }
 }
@@ -189,8 +186,10 @@ class _KartuIzin extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return KartuKaca(
-      tanpaBlur: true,
+    final hijauSukses = Theme.of(context).brightness == Brightness.dark
+        ? WarnaWarkop.suksesGelap
+        : WarnaWarkop.suksesTerang;
+    return KartuWarkop(
       child: Row(
         children: [
           Container(
@@ -227,7 +226,7 @@ class _KartuIzin extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           if (item.diberikan)
-            Icon(Icons.check_circle, color: WarnaWarkop.hijauAman)
+            Icon(Icons.check_circle, color: hijauSukses)
           else
             FutureBuilder<bool>(
               future: LayananIzin.ditolakPermanen(item.izin),

@@ -5,8 +5,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/router.dart';
 import '../../bersama/util/id_unik.dart';
-import '../../bersama/widget/kartu_kaca.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/kategori_menu.dart';
 import '../../data/model/log_audit.dart';
@@ -45,8 +47,12 @@ class LayarKategori extends ConsumerWidget {
               child: kategoriAsync.when(
                 data: (daftar) {
                   if (daftar.isEmpty) {
-                    return const Center(
-                      child: Text('Belum ada kategori. Tambah dulu ya.'),
+                    return StatusKosong(
+                      judul: 'Belum ada kategori',
+                      deskripsi: 'Tambah kategori pertama dulu ya.',
+                      inisial: 'K',
+                      labelAksi: 'Tambah Kategori',
+                      saatAksi: () => _tambahKategori(context, ref),
                     );
                   }
                   return ListView.builder(
@@ -58,13 +64,15 @@ class LayarKategori extends ConsumerWidget {
                 },
                 loading: () =>
                     const Center(child: CircularProgressIndicator()),
-                error: (e, _) =>
-                    Center(child: Text('Gagal memuat kategori: $e')),
+                error: (e, _) => StatusError(
+                  saatCobaLagi: () =>
+                      ref.invalidate(penyediaDaftarKategori),
+                ),
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: TombolKaca(
+              child: TombolWarkop(
                 label: 'Tambah Kategori',
                 ikon: Icons.add_outlined,
                 saatDitekan: () => _tambahKategori(context, ref),
@@ -128,8 +136,7 @@ class _BarisKategori extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: KartuKaca(
-        tanpaBlur: true,
+      child: KartuWarkop(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -139,9 +146,20 @@ class _BarisKategori extends ConsumerWidget {
           ),
           subtitle: Text(kategori.aktif ? 'Aktif' : 'Nonaktif'),
           onTap: () => _gantiNama(context, ref),
-          trailing: Switch.adaptive(
-            value: kategori.aktif,
-            onChanged: (nilai) => _alihkanAktif(context, ref, nilai),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Switch.adaptive(
+                value: kategori.aktif,
+                onChanged: (nilai) => _alihkanAktif(context, ref, nilai),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Hapus kategori',
+                color: Theme.of(context).colorScheme.error,
+                onPressed: () => _konfirmasiHapus(context, ref),
+              ),
+            ],
           ),
         ),
       ),
@@ -202,6 +220,86 @@ class _BarisKategori extends ConsumerWidget {
         HapticFeedback.heavyImpact();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Gagal mengubah status: $e')),
+        );
+      }
+    }
+  }
+
+  /// Hapus kategori (soft delete): cek pemakaian dulu, lalu dialog
+  /// konfirmasi.
+  ///
+  /// Kategori yang masih dipakai menu aktif TIDAK boleh dihapus —
+  /// user harus memindahkan menunya dulu. Soft delete memakai
+  /// [DatabaseLokal.hapusKategoriLunak] (apakah_dihapus=1,
+  /// status_sinkron='tertunda') agar ter-sync ke Supabase.
+  Future<void> _konfirmasiHapus(BuildContext context, WidgetRef ref) async {
+    final db = DatabaseLokal.instance;
+
+    // Tolak bila masih ada menu aktif yang memakai kategori ini.
+    final menuPakai = await db.daftarMenu(idKategori: kategori.id);
+    if (menuPakai.isNotEmpty && context.mounted) {
+      HapticFeedback.heavyImpact();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Kategori "${kategori.nama}" masih dipakai oleh '
+            '${menuPakai.length} menu. Pindahkan dulu menunya ke '
+            'kategori lain.',
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
+    if (!context.mounted) return;
+    final yakin = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Hapus kategori "${kategori.nama}"?'),
+        content: const Text(
+          'Kategori tidak akan muncul lagi di daftar. '
+          'Menu yang sudah terjual tetap tersimpan di riwayat.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (yakin != true || !context.mounted) return;
+
+    try {
+      await db.hapusKategoriLunak(kategori.id);
+      await db.catatAudit(
+        LogAudit(
+          id: idBaru(),
+          aksi: 'hapus_kategori',
+          idReferensi: kategori.id,
+          dibuatPada: DateTime.now(),
+        ),
+      );
+      ref.invalidate(penyediaDaftarKategori);
+      HapticFeedback.mediumImpact();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Kategori "${kategori.nama}" dihapus.')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        HapticFeedback.heavyImpact();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menghapus kategori: $e')),
         );
       }
     }

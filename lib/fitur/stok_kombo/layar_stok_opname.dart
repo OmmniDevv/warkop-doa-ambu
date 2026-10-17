@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/tema/token_warna.dart';
 import '../../bersama/util/id_unik.dart';
-import '../../bersama/widget/kartu_kaca.dart';
-import '../../bersama/widget/orb_latar.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/bahan.dart';
 import '../../data/model/log_audit.dart';
@@ -41,51 +41,52 @@ class _LayarStokOpnameState extends ConsumerState<LayarStokOpname> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('STOK OPNAME')),
-      body: OrbLatar(
-        child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: SegmentedButton<_TipeOpname>(
-                  segments: const [
-                    ButtonSegment(
-                      value: _TipeOpname.menu,
-                      label: Text('Menu'),
-                      icon: Icon(Icons.restaurant_menu_outlined),
-                    ),
-                    ButtonSegment(
-                      value: _TipeOpname.bahan,
-                      label: Text('Bahan'),
-                      icon: Icon(Icons.inventory_2_outlined),
-                    ),
-                  ],
-                  selected: {_tipe},
-                  onSelectionChanged: (pilihan) {
-                    HapticFeedback.lightImpact();
-                    setState(() => _tipe = pilihan.first);
-                  },
-                ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: SegmentedButton<_TipeOpname>(
+                segments: const [
+                  ButtonSegment(
+                    value: _TipeOpname.menu,
+                    label: Text('Menu'),
+                    icon: Icon(Icons.restaurant_menu_outlined),
+                  ),
+                  ButtonSegment(
+                    value: _TipeOpname.bahan,
+                    label: Text('Bahan'),
+                    icon: Icon(Icons.inventory_2_outlined),
+                  ),
+                ],
+                selected: {_tipe},
+                onSelectionChanged: (pilihan) {
+                  HapticFeedback.lightImpact();
+                  setState(() => _tipe = pilihan.first);
+                },
               ),
-              Expanded(
-                child: _tipe == _TipeOpname.menu
-                    ? menuAsync.when(
-                        data: (daftar) => _DaftarOpnameMenu(daftar: daftar),
-                        loading: () =>
-                            const Center(child: CircularProgressIndicator()),
-                        error: (e, _) =>
-                            Center(child: Text('Gagal memuat menu: $e')),
-                      )
-                    : bahanAsync.when(
-                        data: (daftar) => _DaftarOpnameBahan(daftar: daftar),
-                        loading: () =>
-                            const Center(child: CircularProgressIndicator()),
-                        error: (e, _) =>
-                            Center(child: Text('Gagal memuat bahan: $e')),
+            ),
+            Expanded(
+              child: _tipe == _TipeOpname.menu
+                  ? menuAsync.when(
+                      data: (daftar) => _DaftarOpnameMenu(daftar: daftar),
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (e, _) => StatusError(
+                        saatCobaLagi: () =>
+                            ref.invalidate(penyediaMenuStokBersama),
                       ),
-              ),
-            ],
-          ),
+                    )
+                  : bahanAsync.when(
+                      data: (daftar) => _DaftarOpnameBahan(daftar: daftar),
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (e, _) => StatusError(
+                        saatCobaLagi: () => ref.invalidate(penyediaDaftarBahan),
+                      ),
+                    ),
+            ),
+          ],
         ),
       ),
     );
@@ -201,8 +202,7 @@ class _DaftarOpnameMenuState extends State<_DaftarOpnameMenu> {
             id: idBaru(),
             aksi: 'stok_opname',
             idReferensi: e.id,
-            detail:
-                '{"tipe":"menu","stok_sistem":$sistem,"stok_fisik":$fisik}',
+            detail: '{"tipe":"menu","stok_sistem":$sistem,"stok_fisik":$fisik}',
             dibuatPada: DateTime.now(),
           ),
         );
@@ -221,9 +221,9 @@ class _DaftarOpnameMenuState extends State<_DaftarOpnameMenu> {
     } catch (e) {
       if (mounted) {
         HapticFeedback.heavyImpact();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menyimpan opname: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal menyimpan opname: $e')));
       }
     } finally {
       if (mounted) setState(() => _menyimpan = false);
@@ -346,9 +346,9 @@ class _DaftarOpnameBahanState extends State<_DaftarOpnameBahan> {
     } catch (e) {
       if (mounted) {
         HapticFeedback.heavyImpact();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menyimpan opname: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal menyimpan opname: $e')));
       }
     } finally {
       if (mounted) setState(() => _menyimpan = false);
@@ -364,9 +364,7 @@ class _DaftarOpnameBahanState extends State<_DaftarOpnameBahan> {
         menyimpan: _menyimpan,
         jumlahBerubah: _entri.where((e) => e.selisih != 0).length,
         saatSimpan: () => _simpan(ref),
-        kunciAngka: [
-          FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-        ],
+        kunciAngka: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
         tipeKeyboard: const TextInputType.numberWithOptions(decimal: true),
       ),
     );
@@ -395,23 +393,29 @@ class _BadanOpname extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final gayaTeks = Theme.of(context).textTheme;
+
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-          child: KartuKaca(
-            tanpaBlur: true,
+          child: KartuWarkop(
             child: Text(
               jumlahBerubah == 0
                   ? 'Semua stok cocok dengan sistem. Ubah angka fisik bila ada selisih.'
                   : '$jumlahBerubah item memiliki selisih — akan disesuaikan ke stok fisik.',
-              style: Theme.of(context).textTheme.bodyMedium,
+              style: gayaTeks.bodyMedium,
             ),
           ),
         ),
         Expanded(
           child: entri.isEmpty
-              ? const Center(child: Text('Belum ada item.'))
+              ? const StatusKosong(
+                  judul: 'Belum ada item',
+                  deskripsi:
+                      'Tambahkan menu atau bahan dulu sebelum melakukan opname.',
+                  inisial: 'O',
+                )
               : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
                   itemCount: entri.length,
@@ -439,7 +443,7 @@ class _BadanOpname extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: TombolKaca(
+          child: TombolWarkop(
             label: 'Simpan Opname',
             ikon: Icons.check_outlined,
             memuat: menyimpan,
@@ -447,6 +451,55 @@ class _BadanOpname extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Badge selisih opname: warna + ikon + teks.
+class _BadgeSelisih extends StatelessWidget {
+  const _BadgeSelisih({required this.selisih, required this.teks});
+
+  final double selisih;
+  final String teks;
+
+  @override
+  Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
+
+    final cocok = selisih == 0;
+    final warna = cocok
+        ? skema.secondary
+        : selisih < 0
+        ? skema.error
+        : skema.tertiary;
+    final ikon = cocok
+        ? Icons.check_rounded
+        : selisih < 0
+        ? Icons.remove_rounded
+        : Icons.add_rounded;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: warna.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: warna.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(ikon, size: 14, color: warna),
+          const SizedBox(width: 4),
+          Text(
+            teks,
+            style: gayaTeks.labelSmall?.copyWith(
+              color: warna,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -468,18 +521,19 @@ class _BarisOpname extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
     final selisih = entri.selisih;
     final berubah = selisih != 0;
     final warnaSelisih = !berubah
-        ? WarnaWarkop.hijauAman
+        ? skema.secondary
         : selisih < 0
-            ? WarnaWarkop.merahMenyala
-            : WarnaWarkop.kuningAntre;
+        ? skema.error
+        : skema.tertiary;
 
-    return KartuKaca(
-      tanpaBlur: true,
+    final isi = KartuWarkop(
+      margin: const EdgeInsets.all(1.5),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      border: berubah ? warnaSelisih.withValues(alpha: 0.5) : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -488,28 +542,14 @@ class _BarisOpname extends StatelessWidget {
               Expanded(
                 child: Text(
                   entri.nama,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                  style: gayaTeks.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: warnaSelisih.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(999),
-                  border:
-                      Border.all(color: warnaSelisih.withValues(alpha: 0.5)),
-                ),
-                child: Text(
-                  '${selisih >= 0 ? '+' : ''}${_tampil(selisih)}',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: warnaSelisih,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
+              _BadgeSelisih(
+                selisih: selisih,
+                teks: '${selisih >= 0 ? '+' : ''}${_tampil(selisih)}',
               ),
             ],
           ),
@@ -520,13 +560,10 @@ class _BarisOpname extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Sistem',
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
+                    Text('Sistem', style: gayaTeks.labelSmall),
                     Text(
                       '${_tampil(entri.stokSistem)} ${entri.satuan}',
-                      style: Theme.of(context).textTheme.bodyLarge,
+                      style: gayaTeks.bodyLarge,
                     ),
                   ],
                 ),
@@ -551,6 +588,18 @@ class _BarisOpname extends StatelessWidget {
           ),
         ],
       ),
+    );
+
+    if (!berubah) return isi;
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(
+          color: warnaSelisih.withValues(alpha: 0.5),
+          width: 1.5,
+        ),
+      ),
+      child: isi,
     );
   }
 }

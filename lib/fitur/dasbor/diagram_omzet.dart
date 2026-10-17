@@ -2,10 +2,9 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/waktu_wib.dart';
-import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 import 'util_tanggal.dart';
 
@@ -63,16 +62,12 @@ class GrafikOmzet7Hari extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dataAsync = ref.watch(penyediaOmzet7Hari);
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    final teksRedup =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
-    final garisGrid = gelap
-        ? WarnaWarkop.teksSekunderGelap.withValues(alpha: 0.15)
-        : WarnaWarkop.teksSekunderTerang.withValues(alpha: 0.15);
+    final skema = Theme.of(context).colorScheme;
+    final aksen = skema.primary;
+    final teksRedup = skema.onSurfaceVariant;
+    final garisGrid = skema.onSurfaceVariant.withValues(alpha: 0.15);
 
-    return KartuKaca(
-      tanpaBlur: true,
+    return KartuWarkop(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -207,16 +202,12 @@ class GrafikJamSibuk extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dataAsync = ref.watch(penyediaOmzetPerJam);
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    final teksRedup =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
-    final garisGrid = gelap
-        ? WarnaWarkop.teksSekunderGelap.withValues(alpha: 0.15)
-        : WarnaWarkop.teksSekunderTerang.withValues(alpha: 0.15);
+    final skema = Theme.of(context).colorScheme;
+    final aksen = skema.primary;
+    final teksRedup = skema.onSurfaceVariant;
+    final garisGrid = skema.onSurfaceVariant.withValues(alpha: 0.15);
 
-    return KartuKaca(
-      tanpaBlur: true,
+    return KartuWarkop(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

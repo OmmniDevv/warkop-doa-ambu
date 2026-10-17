@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/tema/token_warna.dart';
+import '../../app/tema/token_tipografi.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/id_unik.dart';
-import '../../bersama/widget/kartu_kaca.dart';
-import '../../bersama/widget/orb_latar.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/bahan.dart';
 import '../../data/model/log_audit.dart';
@@ -40,12 +41,12 @@ class LayarBahan extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('BAHAN')),
-      body: OrbLatar(
-        child: SafeArea(
-          child: bahanAsync.when(
-            data: (daftar) => _IsiBahan(daftar: daftar),
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('Gagal memuat bahan: $e')),
+      body: SafeArea(
+        child: bahanAsync.when(
+          data: (daftar) => _IsiBahan(daftar: daftar),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => StatusError(
+            saatCobaLagi: () => ref.invalidate(penyediaDaftarBahan),
           ),
         ),
       ),
@@ -85,9 +86,11 @@ class _IsiBahan extends ConsumerWidget {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('Batal'),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Hapus'),
+          TombolWarkop(
+            label: 'Hapus',
+            varian: VarianTombol.bahaya,
+            lebarPenuh: false,
+            saatDitekan: () => Navigator.of(ctx).pop(true),
           ),
         ],
       ),
@@ -109,15 +112,17 @@ class _IsiBahan extends ConsumerWidget {
       HapticFeedback.mediumImpact();
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menghapus bahan: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal menghapus bahan: $e')));
       }
     }
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
     final jumlahMenipis = daftar.where((b) => b.menipis).length;
 
     return Column(
@@ -126,41 +131,53 @@ class _IsiBahan extends ConsumerWidget {
         // ── Ringkasan ────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-          child: KartuKaca(
-            tanpaBlur: true,
-            border: WarnaWarkop.kuningAntre.withValues(alpha: 0.45),
-            child: Row(
-              children: [
-                Text(
-                  '$jumlahMenipis',
-                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                        color: WarnaWarkop.kuningAntre,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'bahan menipis (stok ≤ batas minimum)',
-                    style: Theme.of(context).textTheme.bodyMedium,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(17),
+              border: Border.all(
+                color: skema.tertiary.withValues(alpha: 0.45),
+                width: 1.5,
+              ),
+            ),
+            child: KartuWarkop(
+              margin: const EdgeInsets.all(1.5),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: skema.tertiary,
+                    size: 28,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  Text(
+                    '$jumlahMenipis',
+                    style: gayaTeks.displayLarge
+                        ?.merge(TipografiWarkop.nominal)
+                        .copyWith(color: skema.tertiary),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'bahan menipis (stok ≤ batas minimum)',
+                      style: gayaTeks.bodyMedium,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
         // ── Daftar ───────────────────────────────────────────────
         Expanded(
           child: daftar.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: KartuKaca(
-                    tanpaBlur: true,
-                    child: Text(
-                      'Belum ada bahan. Tambahkan bahan utama dulu '
+              ? StatusKosong(
+                  judul: 'Belum ada bahan',
+                  deskripsi:
+                      'Tambahkan bahan utama dulu '
                       '(bumbu tidak dicatat).',
-                    ),
-                  ),
+                  inisial: 'B',
+                  labelAksi: 'Tambah Bahan',
+                  saatAksi: () => _bukaForm(context, ref, null),
                 )
               : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
@@ -177,7 +194,7 @@ class _IsiBahan extends ConsumerWidget {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: TombolKaca(
+          child: TombolWarkop(
             label: 'Tambah Bahan',
             ikon: Icons.add_outlined,
             saatDitekan: () => _bukaForm(context, ref, null),
@@ -206,103 +223,111 @@ class _BarisBahan extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
     final menipis = bahan.menipis;
 
-    return GestureDetector(
-      onTap: saatTap,
-      behavior: HitTestBehavior.opaque,
-      child: KartuKaca(
-        tanpaBlur: true,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: menipis
-            ? WarnaWarkop.kuningAntre.withValues(alpha: 0.5)
-            : null,
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          bahan.nama,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      if (menipis)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: WarnaWarkop.kuningAntre
-                                .withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: WarnaWarkop.kuningAntre
-                                  .withValues(alpha: 0.5),
-                            ),
-                          ),
-                          child: Text(
-                            'Menipis',
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelSmall
-                                ?.copyWith(
-                                  color: WarnaWarkop.kuningAntre,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Min: ${_tampilAngka(bahan.stokMinimum)} ${bahan.satuan} · '
-                    'Harga: ${formatRupiah(bahan.hargaBeli)}/${bahan.satuan}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.6),
-                        ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+    final isi = KartuWarkop(
+      saatDitekan: saatTap,
+      margin: const EdgeInsets.all(1.5),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _tampilAngka(bahan.stok),
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: menipis
-                            ? WarnaWarkop.kuningAntre
-                            : Theme.of(context).colorScheme.onSurface,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        bahan.nama,
+                        style: gayaTeks.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
+                    ),
+                    if (menipis)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: skema.tertiary.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: skema.tertiary.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              size: 14,
+                              color: skema.tertiary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Menipis',
+                              style: gayaTeks.labelSmall?.copyWith(
+                                color: skema.tertiary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
+                const SizedBox(height: 4),
                 Text(
-                  bahan.satuan,
-                  style: Theme.of(context).textTheme.bodySmall,
+                  'Min: ${_tampilAngka(bahan.stokMinimum)} ${bahan.satuan} · '
+                  'Harga: ${formatRupiah(bahan.hargaBeli)}/${bahan.satuan}',
+                  style: gayaTeks.bodySmall?.copyWith(
+                    color: skema.onSurface.withValues(alpha: 0.6),
+                  ),
                 ),
               ],
             ),
-            IconButton(
-              tooltip: 'Hapus',
-              icon: const Icon(Icons.delete_outline),
-              onPressed: saatHapus,
-            ),
-          ],
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                _tampilAngka(bahan.stok),
+                style: gayaTeks.displayLarge
+                    ?.merge(TipografiWarkop.nominal)
+                    .copyWith(
+                      color: menipis ? skema.tertiary : skema.onSurface,
+                    ),
+              ),
+              Text(bahan.satuan, style: gayaTeks.bodySmall),
+            ],
+          ),
+          IconButton(
+            tooltip: 'Hapus',
+            icon: Icon(Icons.delete_outline, color: skema.error),
+            onPressed: saatHapus,
+          ),
+        ],
+      ),
+    );
+
+    if (!menipis) return isi;
+    // Bingkai peringatan untuk baris yang menipis — KartuWarkop
+    // tidak punya parameter border, jadi dipasang lewat pembungkus.
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(
+          color: skema.tertiary.withValues(alpha: 0.5),
+          width: 1.5,
         ),
       ),
+      child: isi,
     );
   }
 }
@@ -333,8 +358,9 @@ class _LembarBahanState extends State<_LembarBahan> {
     final b = widget.bahan;
     _nama = TextEditingController(text: b?.nama ?? '');
     _stok = TextEditingController(text: b == null ? '' : _angka(b.stok));
-    _stokMin =
-        TextEditingController(text: b == null ? '' : _angka(b.stokMinimum));
+    _stokMin = TextEditingController(
+      text: b == null ? '' : _angka(b.stokMinimum),
+    );
     _harga = TextEditingController(text: b == null ? '' : '${b.hargaBeli}');
     _satuan = b?.satuan ?? 'pcs';
   }
@@ -358,9 +384,9 @@ class _LembarBahanState extends State<_LembarBahan> {
     final nama = _nama.text.trim();
     if (nama.isEmpty) {
       HapticFeedback.heavyImpact();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nama bahan wajib diisi.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Nama bahan wajib diisi.')));
       return;
     }
     if (_menyimpan) return;
@@ -398,16 +424,17 @@ class _LembarBahanState extends State<_LembarBahan> {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-              Text(lama == null ? 'Bahan ditambahkan' : 'Bahan diperbarui'),
+          content: Text(
+            lama == null ? 'Bahan ditambahkan' : 'Bahan diperbarui',
+          ),
         ),
       );
     } catch (e) {
       if (mounted) {
         HapticFeedback.heavyImpact();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menyimpan bahan: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal menyimpan bahan: $e')));
       }
     } finally {
       if (mounted) setState(() => _menyimpan = false);
@@ -416,12 +443,13 @@ class _LembarBahanState extends State<_LembarBahan> {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
     final adalahUbah = widget.bahan != null;
 
     return Container(
       decoration: BoxDecoration(
-        color: gelap ? WarnaWarkop.kertasGelap : WarnaWarkop.kertasTerang,
+        color: skema.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SafeArea(
@@ -436,10 +464,7 @@ class _LembarBahanState extends State<_LembarBahan> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.25),
+                    color: skema.onSurface.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
@@ -447,20 +472,16 @@ class _LembarBahanState extends State<_LembarBahan> {
               const SizedBox(height: 16),
               Text(
                 adalahUbah ? 'Ubah Bahan' : 'Tambah Bahan',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                style: gayaTeks.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 'Hanya bahan utama — bumbu tidak dicatat.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.6),
-                    ),
+                style: gayaTeks.bodySmall?.copyWith(
+                  color: skema.onSurface.withValues(alpha: 0.6),
+                ),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -497,9 +518,7 @@ class _LembarBahanState extends State<_LembarBahan> {
                         decimal: true,
                       ),
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'[0-9.,]'),
-                        ),
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
                       ],
                       decoration: InputDecoration(
                         labelText: 'Stok ($_satuan)',
@@ -515,9 +534,7 @@ class _LembarBahanState extends State<_LembarBahan> {
                         decimal: true,
                       ),
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'[0-9.,]'),
-                        ),
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
                       ],
                       decoration: InputDecoration(
                         labelText: 'Stok minimum ($_satuan)',
@@ -539,7 +556,7 @@ class _LembarBahanState extends State<_LembarBahan> {
                 ),
               ),
               const SizedBox(height: 16),
-              TombolKaca(
+              TombolWarkop(
                 label: adalahUbah ? 'Simpan Perubahan' : 'Tambah Bahan',
                 ikon: Icons.check_outlined,
                 memuat: _menyimpan,

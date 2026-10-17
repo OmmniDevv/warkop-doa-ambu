@@ -5,18 +5,17 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/penyedia.dart';
 import '../../app/router.dart';
-import '../../app/tema/token_warna.dart';
-import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
 import '../../bersama/widget/keypad_angka.dart';
 import '../../bersama/widget/pembungkus_goyang.dart';
 import '../../bersama/widget/titik_pin.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 
 /// Layar pembuatan Master PIN 6-digit + aktivasi biometrik.
 ///
 /// Tahap 1: masukkan PIN baru. Tahap 2: konfirmasi PIN.
 /// PIN disimpan sebagai hash SHA-256 (bukan teks polos).
-/// Terakhir: opsi glass switch untuk biometrik.
+/// Terakhir: opsi saklar untuk biometrik.
 class LayarSetupPinOwner extends ConsumerStatefulWidget {
   const LayarSetupPinOwner({super.key});
 
@@ -173,8 +172,8 @@ class _LayarSetupPinOwnerState extends ConsumerState<LayarSetupPinOwner> {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = ref.watch(penyediaModeGelap);
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
 
     final judul = _pinTersimpan
         ? 'PIN Tersimpan!'
@@ -188,7 +187,7 @@ class _LayarSetupPinOwnerState extends ConsumerState<LayarSetupPinOwner> {
             : '6 digit untuk otorisasi void & data sensitif.';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('SETUP PIN OWNER')),
+      appBar: AppBar(title: const Text('Setup PIN Owner')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -197,21 +196,23 @@ class _LayarSetupPinOwnerState extends ConsumerState<LayarSetupPinOwner> {
             children: [
               PembungkusGoyang(
                 pengendali: _goyang,
-                child: KartuKaca(
+                child: KartuWarkop(
                   child: Column(
                     children: [
                       Text(
                         judul,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(color: aksen),
+                        style: gayaTeks.titleLarge?.copyWith(
+                          color: skema.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 6),
                       Text(
                         subjudul,
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        style: gayaTeks.bodyMedium?.copyWith(
+                          color: skema.onSurfaceVariant,
+                        ),
                       ),
                       const SizedBox(height: 28),
                       if (!_pinTersimpan) ...[
@@ -228,7 +229,7 @@ class _LayarSetupPinOwnerState extends ConsumerState<LayarSetupPinOwner> {
                             saatHapus: _saatHapus,
                           ),
                       ] else ...[
-                        _IkonSukses(aksen: aksen),
+                        const _IkonSukses(),
                         if (_dukungBiometrik) ...[
                           const SizedBox(height: 20),
                           _SaklarBiometrik(
@@ -237,7 +238,7 @@ class _LayarSetupPinOwnerState extends ConsumerState<LayarSetupPinOwner> {
                           ),
                         ],
                         const SizedBox(height: 24),
-                        TombolKaca(
+                        TombolWarkop(
                           label: 'Mulai Kelola Warkop',
                           ikon: Icons.storefront_outlined,
                           saatDitekan: _selesai,
@@ -249,15 +250,14 @@ class _LayarSetupPinOwnerState extends ConsumerState<LayarSetupPinOwner> {
               ),
               if (!_pinTersimpan && _tahapKonfirmasi) ...[
                 const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () => setState(() {
-                    _tahapKonfirmasi = false;
-                    _pinBaru = '';
-                    _masukan = '';
-                  }),
-                  child: Text(
-                    'Ulangi dari awal',
-                    style: TextStyle(color: aksen),
+                Center(
+                  child: TextButton(
+                    onPressed: () => setState(() {
+                      _tahapKonfirmasi = false;
+                      _pinBaru = '';
+                      _masukan = '';
+                    }),
+                    child: const Text('Ulangi dari awal'),
                   ),
                 ),
               ],
@@ -269,11 +269,9 @@ class _LayarSetupPinOwnerState extends ConsumerState<LayarSetupPinOwner> {
   }
 }
 
-/// Lingkaran centang emas dengan animasi membal.
+/// Lingkaran centang sukses dengan animasi membal.
 class _IkonSukses extends StatefulWidget {
-  const _IkonSukses({required this.aksen});
-
-  final Color aksen;
+  const _IkonSukses();
 
   @override
   State<_IkonSukses> createState() => _IkonSuksesState();
@@ -305,6 +303,7 @@ class _IkonSuksesState extends State<_IkonSukses>
 
   @override
   Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
     return ScaleTransition(
       scale: _skala,
       child: Container(
@@ -312,20 +311,20 @@ class _IkonSuksesState extends State<_IkonSukses>
         height: 88,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: WarnaWarkop.emas.withValues(alpha: 0.15),
-          border: Border.all(color: WarnaWarkop.emas, width: 2),
+          color: skema.secondary.withValues(alpha: 0.15),
+          border: Border.all(color: skema.secondary, width: 2),
         ),
-        child: const Icon(
+        child: Icon(
           Icons.check_rounded,
           size: 44,
-          color: WarnaWarkop.emas,
+          color: skema.secondary,
         ),
       ),
     );
   }
 }
 
-/// Glass switch untuk aktivasi biometrik.
+/// Saklar untuk aktivasi biometrik.
 class _SaklarBiometrik extends StatelessWidget {
   const _SaklarBiometrik({
     required this.aktif,
@@ -337,19 +336,22 @@ class _SaklarBiometrik extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final border =
-        gelap ? WarnaWarkop.borderKacaGelap : WarnaWarkop.borderKacaTerang;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: border),
+        border: Border.all(color: skema.outlineVariant),
       ),
       child: Row(
         children: [
-          const Icon(Icons.fingerprint_outlined, size: 28),
+          Icon(
+            Icons.fingerprint_outlined,
+            size: 28,
+            color: skema.onSurfaceVariant,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -357,18 +359,20 @@ class _SaklarBiometrik extends StatelessWidget {
               children: [
                 Text(
                   'Masuk Cepat Biometrik',
-                  style: Theme.of(context).textTheme.labelLarge,
+                  style: gayaTeks.labelLarge,
                 ),
                 Text(
                   'Sidik jari / Face Unlock',
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  style: gayaTeks.bodyMedium?.copyWith(
+                    color: skema.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
           ),
           Switch.adaptive(
             value: aktif,
-            activeThumbColor: WarnaWarkop.emas,
+            activeThumbColor: skema.primary,
             onChanged: saatUbah,
           ),
         ],

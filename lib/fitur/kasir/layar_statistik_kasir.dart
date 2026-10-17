@@ -4,12 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/router.dart';
-import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/waktu_wib.dart';
-import '../../bersama/widget/kartu_kaca.dart';
-import '../../bersama/widget/orb_latar.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
 import '../../data/lokal/database_lokal.dart';
 import 'penyedia_kasir.dart';
 
@@ -113,119 +112,93 @@ class LayarStatistikKasir extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final kasir = ref.watch(sesiKasirProvider);
     final ringkasanAsync = ref.watch(penyediaRingkasanKasir);
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    final teksRedup =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
 
     if (kasir == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('STATISTIK')),
+        appBar: AppBar(title: const Text('Statistik')),
         body: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.person_off_outlined, size: 64, color: aksen),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Masuk dulu sebagai kasir untuk melihat statistikmu.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 24),
-                  TombolKaca(
-                    label: 'Masuk sebagai Kasir',
-                    lebarPenuh: false,
-                    saatDitekan: () => context.go(Rute.selamatDatang),
-                  ),
-                ],
-              ),
-            ),
+          child: StatusKosong(
+            judul: 'Belum masuk',
+            deskripsi:
+                'Masuk dulu sebagai kasir untuk melihat statistikmu.',
+            inisial: '?',
+            labelAksi: 'Masuk sebagai Kasir',
+            saatAksi: () => context.go(Rute.selamatDatang),
           ),
         ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('STATISTIK')),
-      body: OrbLatar(
-        child: SafeArea(
-          child: RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(penyediaRingkasanKasir);
-              await ref.read(penyediaRingkasanKasir.future);
-            },
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Halo, ${kasir.nama}!',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+      appBar: AppBar(title: const Text('Statistik')),
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(penyediaRingkasanKasir);
+            await ref.read(penyediaRingkasanKasir.future);
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Halo, ${kasir.nama}!',
+                  style: gayaTeks.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Statistik penjualanmu hari ini (WIB).',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(color: teksRedup),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Statistik penjualanmu hari ini (WIB).',
+                  style: gayaTeks.bodyMedium?.copyWith(
+                    color: skema.onSurfaceVariant,
                   ),
-                  const SizedBox(height: 16),
-                  ringkasanAsync.when(
-                    data: (r) => Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _KartuAngka(
-                                label: 'Omzet Hari Ini',
-                                nilai: formatRupiah(r.omzet),
-                                ikon: Icons.payments_outlined,
-                                aksen: aksen,
-                              ),
+                ),
+                const SizedBox(height: 16),
+                ringkasanAsync.when(
+                  data: (r) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _KartuAngka(
+                              label: 'Omzet Hari Ini',
+                              nilai: formatRupiah(r.omzet),
+                              ikon: Icons.payments_outlined,
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _KartuAngka(
-                                label: 'Transaksi Hari Ini',
-                                nilai: '${r.jumlahTransaksi}',
-                                ikon: Icons.receipt_outlined,
-                                aksen: aksen,
-                              ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _KartuAngka(
+                              label: 'Transaksi Hari Ini',
+                              nilai: '${r.jumlahTransaksi}',
+                              ikon: Icons.receipt_outlined,
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        _GrafikJamKasir(
-                          perJam: r.perJam,
-                          aksen: aksen,
-                          teksRedup: teksRedup,
-                        ),
-                        const SizedBox(height: 12),
-                        _TerlarisKasir(
-                          terlaris: r.terlaris,
-                          aksen: aksen,
-                          teksRedup: teksRedup,
-                        ),
-                      ],
-                    ),
-                    loading: () => const Padding(
-                      padding: EdgeInsets.all(32),
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
-                    error: (e, _) => Text('Gagal memuat statistik: $e'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _GrafikJamKasir(perJam: r.perJam),
+                      const SizedBox(height: 12),
+                      _TerlarisKasir(terlaris: r.terlaris),
+                    ],
                   ),
-                ],
-              ),
+                  loading: () => const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                  error: (e, _) => StatusError(
+                    pesan: 'Gagal memuat statistik. Coba lagi ya.',
+                    saatCobaLagi: () =>
+                        ref.invalidate(penyediaRingkasanKasir),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -239,33 +212,34 @@ class _KartuAngka extends StatelessWidget {
     required this.label,
     required this.nilai,
     required this.ikon,
-    required this.aksen,
   });
 
   final String label;
   final String nilai;
   final IconData ikon;
-  final Color aksen;
 
   @override
   Widget build(BuildContext context) {
-    return KartuKaca(
-      tanpaBlur: true,
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
+    return KartuWarkop(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(ikon, color: aksen, size: 22),
+          Icon(ikon, color: skema.primary, size: 22),
           const SizedBox(height: 8),
           Text(
             nilai,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+            style: gayaTeks.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
             label,
-            style: Theme.of(context).textTheme.bodySmall,
+            style: gayaTeks.bodySmall?.copyWith(
+              color: skema.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -274,37 +248,33 @@ class _KartuAngka extends StatelessWidget {
 }
 
 class _GrafikJamKasir extends StatelessWidget {
-  const _GrafikJamKasir({
-    required this.perJam,
-    required this.aksen,
-    required this.teksRedup,
-  });
+  const _GrafikJamKasir({required this.perJam});
 
   final List<int> perJam;
-  final Color aksen;
-  final Color teksRedup;
 
   @override
   Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
     final maks = perJam.fold<int>(0, (a, b) => a > b ? a : b);
     final jamTersibuk = maks > 0 ? perJam.indexOf(maks) : -1;
 
-    return KartuKaca(
-      tanpaBlur: true,
+    return KartuWarkop(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.schedule_rounded, color: aksen, size: 20),
+              Icon(Icons.schedule_rounded,
+                  color: skema.primary, size: 20),
               const SizedBox(width: 8),
               Text(
                 'JAM SIBUKMU (WIB)',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: aksen,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                    ),
+                style: gayaTeks.labelSmall?.copyWith(
+                  color: skema.primary,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                ),
               ),
             ],
           ),
@@ -312,10 +282,9 @@ class _GrafikJamKasir extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Tersibuk jam ${jamTersibuk.toString().padLeft(2, '0')}.00 WIB',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w700),
+              style: gayaTeks.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
           const SizedBox(height: 12),
@@ -325,16 +294,16 @@ class _GrafikJamKasir extends StatelessWidget {
                 ? Center(
                     child: Text(
                       'Belum ada penjualan hari ini.',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: teksRedup),
+                      style: gayaTeks.bodySmall?.copyWith(
+                        color: skema.onSurfaceVariant,
+                      ),
                     ),
                   )
                 : RepaintBoundary(
                     child: BarChart(
                       BarChartData(
-                        maxY: (maks * 1.25).clamp(1, double.infinity).toDouble(),
+                        maxY:
+                            (maks * 1.25).clamp(1, double.infinity).toDouble(),
                         barTouchData: BarTouchData(
                           touchTooltipData: BarTouchTooltipData(
                             getTooltipItem: (grup, _, rod, __) {
@@ -369,7 +338,7 @@ class _GrafikJamKasir extends StatelessWidget {
                                   jam.toString().padLeft(2, '0'),
                                   style: TextStyle(
                                     fontSize: 10,
-                                    color: teksRedup,
+                                    color: skema.onSurfaceVariant,
                                   ),
                                 );
                               },
@@ -388,8 +357,9 @@ class _GrafikJamKasir extends StatelessWidget {
                                   width: 6,
                                   borderRadius: BorderRadius.circular(3),
                                   color: jam == jamTersibuk
-                                      ? aksen
-                                      : aksen.withValues(alpha: 0.35),
+                                      ? skema.primary
+                                      : skema.primary
+                                          .withValues(alpha: 0.35),
                                 ),
                               ],
                             ),
@@ -405,37 +375,32 @@ class _GrafikJamKasir extends StatelessWidget {
 }
 
 class _TerlarisKasir extends StatelessWidget {
-  const _TerlarisKasir({
-    required this.terlaris,
-    required this.aksen,
-    required this.teksRedup,
-  });
+  const _TerlarisKasir({required this.terlaris});
 
   final List<({String nama, int qty})> terlaris;
-  final Color aksen;
-  final Color teksRedup;
 
   @override
   Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
     final maks = terlaris.fold<int>(0, (a, b) => a > b.qty ? a : b.qty);
 
-    return KartuKaca(
-      tanpaBlur: true,
+    return KartuWarkop(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Icon(Icons.local_fire_department_outlined,
-                  color: aksen, size: 20),
+                  color: skema.primary, size: 20),
               const SizedBox(width: 8),
               Text(
                 'MENU TERLARISMU',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: aksen,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                    ),
+                style: gayaTeks.labelSmall?.copyWith(
+                  color: skema.primary,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                ),
               ),
             ],
           ),
@@ -443,10 +408,9 @@ class _TerlarisKasir extends StatelessWidget {
           if (terlaris.isEmpty)
             Text(
               'Belum ada penjualan hari ini.',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: teksRedup),
+              style: gayaTeks.bodySmall?.copyWith(
+                color: skema.onSurfaceVariant,
+              ),
             )
           else
             for (var i = 0; i < terlaris.length; i++) ...[
@@ -456,13 +420,10 @@ class _TerlarisKasir extends StatelessWidget {
                     width: 28,
                     child: Text(
                       '${i + 1}',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleSmall
-                          ?.copyWith(
-                            color: aksen,
-                            fontWeight: FontWeight.w700,
-                          ),
+                      style: gayaTeks.titleSmall?.copyWith(
+                        color: skema.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                   Expanded(
@@ -478,15 +439,14 @@ class _TerlarisKasir extends StatelessWidget {
                                 terlaris[i].nama,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium,
+                                style: gayaTeks.bodyMedium,
                               ),
                             ),
                             Text(
                               '${terlaris[i].qty}x',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(color: teksRedup),
+                              style: gayaTeks.bodySmall?.copyWith(
+                                color: skema.onSurfaceVariant,
+                              ),
                             ),
                           ],
                         ),
@@ -497,9 +457,10 @@ class _TerlarisKasir extends StatelessWidget {
                             value: maks > 0 ? terlaris[i].qty / maks : 0,
                             minHeight: 6,
                             backgroundColor:
-                                aksen.withValues(alpha: 0.15),
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(aksen),
+                                skema.primary.withValues(alpha: 0.15),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              skema.primary,
+                            ),
                           ),
                         ),
                       ],

@@ -6,11 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/router.dart';
-import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/id_unik.dart';
-import '../../bersama/widget/kartu_kaca.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/log_audit.dart';
 import '../../data/model/menu.dart';
@@ -107,23 +108,26 @@ class _LayarMenuState extends ConsumerState<LayarMenu> {
             SizedBox(
               height: 56,
               child: kategoriAsync.when(
-                data: (kategori) => ListView(
+                data: (kategori) => ListView.builder(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(
                       horizontal: 16, vertical: 10),
-                  children: [
-                    _ChipFilter(
-                      label: 'Semua',
-                      terpilih: _idKategori == null,
-                      saatPilih: () => setState(() => _idKategori = null),
-                    ),
-                    for (final k in kategori)
-                      _ChipFilter(
-                        label: k.nama,
-                        terpilih: _idKategori == k.id,
-                        saatPilih: () => setState(() => _idKategori = k.id),
-                      ),
-                  ],
+                  itemCount: kategori.length + 1,
+                  itemBuilder: (context, i) {
+                    if (i == 0) {
+                      return _ChipFilter(
+                        label: 'Semua',
+                        terpilih: _idKategori == null,
+                        saatPilih: () => setState(() => _idKategori = null),
+                      );
+                    }
+                    final k = kategori[i - 1];
+                    return _ChipFilter(
+                      label: k.nama,
+                      terpilih: _idKategori == k.id,
+                      saatPilih: () => setState(() => _idKategori = k.id),
+                    );
+                  },
                 ),
                 loading: () => const SizedBox.shrink(),
                 error: (_, __) => const SizedBox.shrink(),
@@ -135,12 +139,12 @@ class _LayarMenuState extends ConsumerState<LayarMenu> {
                 data: (semua) {
                   final daftar = _saring(semua);
                   if (daftar.isEmpty) {
-                    return Center(
-                      child: Text(
-                        _kataKunci.trim().isEmpty
-                            ? 'Belum ada menu di sini. Tambah dulu ya.'
-                            : 'Tidak ada menu yang cocok dengan pencarian.',
-                      ),
+                    return StatusKosong(
+                      judul: 'Belum ada menu',
+                      deskripsi: _kataKunci.trim().isEmpty
+                          ? 'Tambah menu pertama dulu ya.'
+                          : 'Tidak ada menu yang cocok dengan pencarian.',
+                      inisial: 'M',
                     );
                   }
                   return ListView.builder(
@@ -155,13 +159,14 @@ class _LayarMenuState extends ConsumerState<LayarMenu> {
                 },
                 loading: () =>
                     const Center(child: CircularProgressIndicator()),
-                error: (e, _) =>
-                    Center(child: Text('Gagal memuat menu: $e')),
+                error: (e, _) => StatusError(
+                  saatCobaLagi: () => ref.invalidate(penyediaSemuaMenu),
+                ),
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: TombolKaca(
+              child: TombolWarkop(
                 label: 'Tambah Menu',
                 ikon: Icons.add_outlined,
                 saatDitekan: () => _bukaFormMenu(null),
@@ -317,10 +322,11 @@ class _BarisMenu extends StatelessWidget {
     if (menipis) detail.write(' • Menipis!');
     if (!menu.tersedia) detail.write(' • Nonaktif');
 
+    final skema = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: KartuKaca(
-        tanpaBlur: true,
+      child: KartuWarkop(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -339,7 +345,7 @@ class _BarisMenu extends StatelessWidget {
           subtitle: Text(
             detail.toString(),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: menipis ? WarnaWarkop.merahMenyala : null,
+                  color: menipis ? skema.error : null,
                 ),
           ),
           onTap: saatUbah,
@@ -367,8 +373,7 @@ class _MiniaturFoto extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (url == null || url!.isEmpty) {
-      final gelap = Theme.of(context).brightness == Brightness.dark;
-      final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+      final aksen = Theme.of(context).colorScheme.primary;
       return Container(
         color: aksen.withValues(alpha: 0.1),
         child: Icon(Icons.restaurant_menu_outlined, color: aksen),
@@ -561,7 +566,7 @@ class _FormMenuSheetState extends ConsumerState<_FormMenuSheet> {
             const SizedBox(height: 12),
             BagianResep(idMenu: _idMenu),
             const SizedBox(height: 16),
-            TombolKaca(
+            TombolWarkop(
               label: adalahUbah ? 'Simpan Perubahan' : 'Tambah Menu',
               ikon: Icons.check_outlined,
               memuat: _memuat,
@@ -685,8 +690,7 @@ class _BagianFoto extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final aksen = Theme.of(context).colorScheme.primary;
 
     return Row(
       children: [
@@ -736,7 +740,8 @@ class _BagianFoto extends StatelessWidget {
                   icon: const Icon(Icons.delete_outline, size: 18),
                   label: const Text('Hapus foto'),
                   style: TextButton.styleFrom(
-                    foregroundColor: WarnaWarkop.merahMenyala,
+                    foregroundColor:
+                        Theme.of(context).colorScheme.error,
                   ),
                 ),
             ],

@@ -4,11 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/penyedia.dart';
 import '../../bersama/util/id_unik.dart';
-import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
 import '../../bersama/widget/keypad_angka.dart';
 import '../../bersama/widget/pembungkus_goyang.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
 import '../../bersama/widget/titik_pin.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/akun.dart';
 import '../../data/model/log_audit.dart';
@@ -37,11 +39,10 @@ class LayarAkunKasir extends ConsumerWidget {
               child: kasirAsync.when(
                 data: (daftar) {
                   if (daftar.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        'Belum ada akun kasir.\nTambah lewat tombol di bawah ya.',
-                        textAlign: TextAlign.center,
-                      ),
+                    return StatusKosong(
+                      judul: 'Belum ada akun kasir',
+                      deskripsi: 'Tambah lewat tombol di bawah ya.',
+                      inisial: 'K',
                     );
                   }
                   return ListView.builder(
@@ -56,13 +57,15 @@ class LayarAkunKasir extends ConsumerWidget {
                 },
                 loading: () =>
                     const Center(child: CircularProgressIndicator()),
-                error: (e, _) =>
-                    Center(child: Text('Gagal memuat akun kasir: $e')),
+                error: (e, _) => StatusError(
+                  saatCobaLagi: () =>
+                      ref.invalidate(penyediaDaftarKasir),
+                ),
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: TombolKaca(
+              child: TombolWarkop(
                 label: 'Tambah Kasir',
                 ikon: Icons.person_add_outlined,
                 saatDitekan: () => _bukaLembarPin(context, null),
@@ -98,8 +101,7 @@ class _BarisKasir extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: KartuKaca(
-        tanpaBlur: true,
+      child: KartuWarkop(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -493,7 +495,7 @@ class _LembarPinKasirState extends ConsumerState<_LembarPinKasir> {
                 onSubmitted: (_) => _lanjutDariNama(),
               ),
               const SizedBox(height: 16),
-              TombolKaca(
+              TombolWarkop(
                 label: 'Lanjut',
                 ikon: Icons.arrow_forward_outlined,
                 saatDitekan: _lanjutDariNama,

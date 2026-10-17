@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
@@ -204,6 +206,10 @@ class MesinSinkron {
       }
 
       await _sinkronkanLogAudit(client);
+
+      // BUG-07: coba unggah ulang foto bukti yang gagal pada percobaan
+      // pertama — jangan biarkan foto hanya tersimpan di device.
+      await _unggahUlangBuktiTertunda(client);
 
       // Unduh akun kasir dari server (agar akun yang dibuat owner di
       // perangkat lain / sebelum reinstall tetap muncul).
@@ -424,7 +430,65 @@ class MesinSinkron {
     }
   }
 
-  /// Validasi + pemetaan satu baris akun Supabase → baris SQLite.
+  /// Menentukan apakah satu baris pesanan butuh upload ulang foto bukti.
+  ///
+  /// BUG-07: true bila ada `foto_bukti_lokal` (path tidak kosong) tapi
+  /// `foto_bukti_remote` masih null — artinya upload awal gagal / belum
+  /// terjadi dan foto hanya ada di device. Dipisah sebagai fungsi murni
+  /// agar bisa di-unit-test.
+  @visibleForTesting
+  static bool perluUnggahUlangBukti(Map<String, Object?> baris) {
+    final lokal = baris['foto_bukti_lokal'] as String?;
+    final remote = baris['foto_bukti_remote'] as String?;
+    return lokal != null && lokal.isNotEmpty && remote == null;
+  }
+
+  /// Mengunggah ulang foto bukti yang gagal pada percobaan pertama.
+  ///
+  /// BUG-07: _unggahBukti() di layar bayar hanya mencoba sekali; bila gagal
+  /// (offline / jaringan putus), foto hanya tersimpan lokal. Metode ini
+  /// dipanggil dari [sinkronkan()] agar setiap putaran sinkron mencoba lagi
+  /// sampai berhasil — foto tidak hilang diam-diam.
+  /// Tidak pernah throw.
+  Future<void> _unggahUlangBuktiTertunda(SupabaseClient client) async {
+    try {
+      final db = DatabaseLokal.instance;
+      final dbBuka = await db.db;
+      final baris = await dbBuka.query(
+        'pesanan',
+        columns: ['id', 'foto_bukti_lokal', 'foto_bukti_remote'],
+        where: "foto_bukti_lokal IS NOT NULL AND foto_bukti_lokal != '' "
+            "AND foto_bukti_remote IS NULL",
+      );
+      for (final b in baris) {
+        if (!perluUnggahUlangBukti(b)) continue;
+        final id = b['id'] as String?;
+        final pathLokal = b['foto_bukti_lokal'] as String?;
+        if (id == null || id.isEmpty || pathLokal == null) continue;
+        try {
+          final berkas = File(pathLokal);
+          if (!await berkas.exists()) continue;
+          final cap = DateTime.now().millisecondsSinceEpoch;
+          final namaBerkas = 'bukti/${id}_$cap.jpg';
+          await client.storage
+              .from('bukti-pembayaran')
+              .upload(namaBerkas, berkas);
+          final terbaru = await db.ambilPesanan(id);
+          if (terbaru != null) {
+            await db.perbaruiPesanan(
+              terbaru.copyWith(fotoBuktiRemote: namaBerkas),
+            );
+          }
+          debugPrint('[Sinkron] bukti $id terunggah: $namaBerkas');
+        } catch (e) {
+          // Gagal lagi — biarkan, dicoba lagi putaran berikutnya.
+          debugPrint('[Sinkron] bukti $id gagal diunggah ulang: $e');
+        }
+      }
+    } catch (_) {
+      // Query gagal — lewati diam-diam, coba lagi nanti.
+    }
+  }
   ///
   /// Mengembalikan null bila data tidak valid (kolom kritikal kosong).
   /// Dipisah sebagai fungsi murni agar bisa di-unit-test.

@@ -6,14 +6,13 @@ import 'package:go_router/go_router.dart';
 import '../../app/penyedia.dart';
 import '../../app/router.dart';
 import '../../app/tema/token_tipografi.dart';
-import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/waktu_wib.dart';
 import '../../bersama/izin/layanan_izin.dart';
-import '../../bersama/widget/kartu_kaca.dart';
-import '../../bersama/widget/orb_latar.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
 import '../../bersama/widget/tombol_tema.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/bahan.dart';
 import '../printer/layanan_printer.dart';
@@ -117,17 +116,20 @@ class LayarDasbor extends ConsumerWidget {
       data: (profil) {
         if (profil == null) {
           return const Scaffold(
-            body: OrbLatar(
-              child: SafeArea(child: _PesanProfilKosong()),
-            ),
+            body: SafeArea(child: _PesanProfilKosong()),
           );
         }
         return _IsiDasbor(namaWarkop: profil.namaWarkop);
       },
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) =>
-          Scaffold(body: Center(child: Text('Gagal memuat profil: $e'))),
+      error: (e, _) => Scaffold(
+        body: SafeArea(
+          child: StatusError(
+            saatCobaLagi: () => ref.invalidate(penyediaProfilPemilik),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -138,7 +140,7 @@ class _PesanProfilKosong extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final skema = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -148,7 +150,7 @@ class _PesanProfilKosong extends StatelessWidget {
           Icon(
             Icons.storefront_outlined,
             size: 72,
-            color: gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang,
+            color: skema.onSurfaceVariant,
           ),
           const SizedBox(height: 16),
           Text(
@@ -163,7 +165,7 @@ class _PesanProfilKosong extends StatelessWidget {
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 24),
-          TombolKaca(
+          TombolWarkop(
             label: 'Ke Halaman Masuk',
             ikon: Icons.login_outlined,
             saatDitekan: () => context.go(Rute.masuk),
@@ -184,56 +186,57 @@ class _IsiDasbor extends ConsumerWidget {
     final ringkasanAsync = ref.watch(penyediaRingkasanDasbor);
 
     return Scaffold(
-      body: OrbLatar(
-        child: SafeArea(
-          child: RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(penyediaRingkasanDasbor);
-              await ref.read(penyediaRingkasanDasbor.future);
-            },
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _KepalaDasbor(namaWarkop: namaWarkop),
-                  const SizedBox(height: 20),
-                  ringkasanAsync.when(
-                    data: (r) => Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _KartuOmzetHero(ringkasan: r),
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(penyediaRingkasanDasbor);
+            await ref.read(penyediaRingkasanDasbor.future);
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _KepalaDasbor(namaWarkop: namaWarkop),
+                const SizedBox(height: 20),
+                ringkasanAsync.when(
+                  data: (r) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _KartuOmzetHero(ringkasan: r),
+                      const SizedBox(height: 12),
+                      _BarisStatistik(ringkasan: r),
+                      const SizedBox(height: 12),
+                      const GrafikOmzet7Hari(),
+                      const SizedBox(height: 12),
+                      const GrafikJamSibuk(),
+                      if (r.bahanMenipis.isNotEmpty) ...[
                         const SizedBox(height: 12),
-                        _BarisStatistik(ringkasan: r),
-                        const SizedBox(height: 12),
-                        const GrafikOmzet7Hari(),
-                        const SizedBox(height: 12),
-                        const GrafikJamSibuk(),
-                        if (r.bahanMenipis.isNotEmpty) ...[
-                          const SizedBox(height: 12),
-                          _PeringatanBahan(ringkasan: r),
-                        ],
-                        if (r.kasbonAktif > 0 ||
-                            (r.bahanMenipis.isEmpty && r.stokMenipis > 0)) ...[
-                          const SizedBox(height: 12),
-                          _InfoPerhatian(ringkasan: r),
-                        ],
+                        _PeringatanBahan(ringkasan: r),
                       ],
-                    ),
-                    loading: () => const Padding(
-                      padding: EdgeInsets.all(32),
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
-                    error: (e, _) => Text('Gagal memuat ringkasan: $e'),
+                      if (r.kasbonAktif > 0 ||
+                          (r.bahanMenipis.isEmpty && r.stokMenipis > 0)) ...[
+                        const SizedBox(height: 12),
+                        _InfoPerhatian(ringkasan: r),
+                      ],
+                    ],
                   ),
-                  const SizedBox(height: 20),
-                  const _JudulBagian('Aksi Cepat'),
-                  const _AksiCepat(),
-                  const SizedBox(height: 24),
-                  const _TombolKeluarDasbor(),
-                ],
-              ),
+                  loading: () => const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                  error: (e, _) => StatusError(
+                    saatCobaLagi: () =>
+                        ref.invalidate(penyediaRingkasanDasbor),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const _JudulBagian('Aksi Cepat'),
+                const _AksiCepat(),
+                const SizedBox(height: 24),
+                const _TombolKeluarDasbor(),
+              ],
             ),
           ),
         ),
@@ -285,23 +288,14 @@ class _TombolKeluarDasbor extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return OutlinedButton.icon(
-      onPressed: () {
+    return TombolWarkop(
+      label: 'Keluar dari Akun Owner',
+      ikon: Icons.logout_outlined,
+      varian: VarianTombol.bahaya,
+      saatDitekan: () {
         HapticFeedback.lightImpact();
         _keluarDariDasbor(context, ref);
       },
-      icon: const Icon(Icons.logout_outlined),
-      label: const Text('Keluar dari Akun Owner'),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: WarnaWarkop.merahMenyala,
-        side: BorderSide(
-          color: WarnaWarkop.merahMenyala.withValues(alpha: 0.5),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-      ),
     );
   }
 }
@@ -322,12 +316,8 @@ class _KepalaDasbor extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final teksRedup = gelap
-        ? WarnaWarkop.teksSekunderGelap
-        : WarnaWarkop.teksSekunderTerang;
-    final teksUtama =
-        gelap ? WarnaWarkop.teksGelap : WarnaWarkop.teksTerang;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -338,27 +328,27 @@ class _KepalaDasbor extends ConsumerWidget {
             children: [
               Text(
                 _sapaan(),
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: teksRedup),
+                style: gayaTeks.bodyMedium?.copyWith(
+                  color: skema.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 2),
               Text(
                 namaWarkop,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.headlineSmall?.merge(
-                      TipografiWarkop.judulBrand.copyWith(color: teksUtama),
-                    ),
+                style: gayaTeks.headlineSmall?.merge(
+                  TipografiWarkop.judulBrand.copyWith(
+                    color: skema.onSurface,
+                  ),
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 formatTanggalPendek(DateTime.now()),
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: teksRedup),
+                style: gayaTeks.bodySmall?.copyWith(
+                  color: skema.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -379,17 +369,15 @@ class _KepalaDasbor extends ConsumerWidget {
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color:
-                      WarnaWarkop.merahMenyala.withValues(alpha: 0.12),
+                  color: skema.error.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: WarnaWarkop.merahMenyala
-                        .withValues(alpha: 0.4),
+                    color: skema.error.withValues(alpha: 0.4),
                   ),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.logout_outlined,
-                  color: WarnaWarkop.merahMenyala,
+                  color: skema.error,
                   size: 20,
                 ),
               ),
@@ -413,14 +401,10 @@ class _KartuOmzetHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    final teksRedup = gelap
-        ? WarnaWarkop.teksSekunderGelap
-        : WarnaWarkop.teksSekunderTerang;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
 
-    return KartuKaca(
-      tingkat: TingkatKaca.kuat,
+    return KartuWarkop(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -428,11 +412,11 @@ class _KartuOmzetHero extends StatelessWidget {
             children: [
               Text(
                 'OMZET HARI INI',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: aksen,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                    ),
+                style: gayaTeks.labelSmall?.copyWith(
+                  color: skema.primary,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                ),
               ),
               const Spacer(),
               _ChipDelta(ringkasan: ringkasan),
@@ -441,15 +425,16 @@ class _KartuOmzetHero extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             formatRupiah(ringkasan.omzetHariIni),
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+            style: gayaTeks.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             '${ringkasan.jumlahPesananHariIni} transaksi • vs kemarin',
-            style:
-                Theme.of(context).textTheme.bodySmall?.copyWith(color: teksRedup),
+            style: gayaTeks.bodySmall?.copyWith(
+              color: skema.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -465,7 +450,7 @@ class _ChipDelta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final skema = Theme.of(context).colorScheme;
     final r = ringkasan;
 
     late final String teks;
@@ -474,13 +459,11 @@ class _ChipDelta extends StatelessWidget {
     if (r.omzetKemarin <= 0) {
       if (r.omzetHariIni <= 0) {
         teks = 'Belum ada penjualan';
-        warna = gelap
-            ? WarnaWarkop.teksSekunderGelap
-            : WarnaWarkop.teksSekunderTerang;
+        warna = skema.onSurfaceVariant;
         ikon = Icons.remove_rounded;
       } else {
         teks = 'Mulai tercatat hari ini';
-        warna = WarnaWarkop.hijauAman;
+        warna = skema.secondary;
         ikon = Icons.spa_outlined;
       }
     } else {
@@ -488,17 +471,15 @@ class _ChipDelta extends StatelessWidget {
           ((r.omzetHariIni - r.omzetKemarin) / r.omzetKemarin * 100).round();
       if (persen > 0) {
         teks = '+$persen%';
-        warna = WarnaWarkop.hijauAman;
+        warna = skema.secondary;
         ikon = Icons.trending_up_rounded;
       } else if (persen < 0) {
         teks = '$persen%';
-        warna = WarnaWarkop.merahMenyala;
+        warna = skema.error;
         ikon = Icons.trending_down_rounded;
       } else {
         teks = '±0%';
-        warna = gelap
-            ? WarnaWarkop.teksSekunderGelap
-            : WarnaWarkop.teksSekunderTerang;
+        warna = skema.onSurfaceVariant;
         ikon = Icons.trending_flat_rounded;
       }
     }
@@ -578,16 +559,10 @@ class _KartuPeriode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    final teksRedup = gelap
-        ? WarnaWarkop.teksSekunderGelap
-        : WarnaWarkop.teksSekunderTerang;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
 
-    return KartuKaca(
-      tanpaBlur: true,
-      tingkat: TingkatKaca.ringan,
-      radius: 16,
+    return KartuWarkop(
       padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -596,11 +571,11 @@ class _KartuPeriode extends StatelessWidget {
             judul,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: aksen,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
-                ),
+            style: gayaTeks.labelSmall?.copyWith(
+              color: skema.primary,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
           ),
           const SizedBox(height: 8),
           FittedBox(
@@ -608,19 +583,15 @@ class _KartuPeriode extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Text(
               formatRupiahRingkas(omzet),
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.merge(TipografiWarkop.nominal),
+              style: gayaTeks.titleMedium?.merge(TipografiWarkop.nominal),
             ),
           ),
           const SizedBox(height: 4),
           Text(
             '$transaksi transaksi',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: teksRedup),
+            style: gayaTeks.bodySmall?.copyWith(
+              color: skema.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -641,92 +612,99 @@ class _PeringatanBahan extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
     final bahan = ringkasan.bahanMenipis;
 
-    return KartuKaca(
-      tanpaBlur: true,
-      tingkat: TingkatKaca.ringan,
-      radius: 16,
-      border: WarnaWarkop.emas.withValues(alpha: 0.45),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.warning_amber_rounded,
-                color: WarnaWarkop.emas,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Bahan menipis',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w700),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(
+          color: skema.tertiary.withValues(alpha: 0.45),
+          width: 1.5,
+        ),
+      ),
+      child: KartuWarkop(
+        margin: const EdgeInsets.all(1.5),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: skema.tertiary,
+                  size: 20,
                 ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: WarnaWarkop.emas.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  '${bahan.length}',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: WarnaWarkop.emas,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          for (final b in bahan.take(4))
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      b.nama,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Bahan menipis',
+                    style: gayaTeks.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  Text(
-                    'sisa ${_formatStok(b.stok)} ${b.satuan}',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.merge(TipografiWarkop.nominal)
-                        .copyWith(color: WarnaWarkop.emas),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
                   ),
-                ],
+                  decoration: BoxDecoration(
+                    color: skema.tertiary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${bahan.length}',
+                    style: gayaTeks.labelMedium?.copyWith(
+                      color: skema.tertiary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            for (final b in bahan.take(4))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        b.nama,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: gayaTeks.bodyMedium,
+                      ),
+                    ),
+                    Text(
+                      'sisa ${_formatStok(b.stok)} ${b.satuan}',
+                      style: gayaTeks.bodySmall
+                          ?.merge(TipografiWarkop.nominal)
+                          .copyWith(color: skema.tertiary),
+                    ),
+                  ],
+                ),
+              ),
+            if (bahan.length > 4)
+              Text(
+                '+${bahan.length - 4} bahan lainnya',
+                style: gayaTeks.bodySmall,
+              ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  context.go(Rute.stok);
+                },
+                icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                label: const Text('Cek Stok'),
               ),
             ),
-          if (bahan.length > 4)
-            Text(
-              '+${bahan.length - 4} bahan lainnya',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                context.go(Rute.stok);
-              },
-              icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-              label: const Text('Cek Stok'),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -740,24 +718,23 @@ class _InfoPerhatian extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return KartuKaca(
-      tanpaBlur: true,
-      tingkat: TingkatKaca.ringan,
-      radius: 16,
+    final skema = Theme.of(context).colorScheme;
+
+    return KartuWarkop(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         children: [
           if (ringkasan.kasbonAktif > 0)
             _BarisInfo(
               ikon: Icons.handshake_outlined,
-              warna: WarnaWarkop.kuningAntre,
+              warna: skema.tertiary,
               teks: '${ringkasan.kasbonAktif} kasbon belum lunas',
               saatDitekan: () => context.push(Rute.kasbon),
             ),
           if (ringkasan.bahanMenipis.isEmpty && ringkasan.stokMenipis > 0)
             _BarisInfo(
               ikon: Icons.inventory_2_outlined,
-              warna: WarnaWarkop.merahMenyala,
+              warna: skema.error,
               teks: '${ringkasan.stokMenipis} menu hampir habis',
               saatDitekan: () => context.go(Rute.stok),
             ),
@@ -825,7 +802,7 @@ class _AksiCepat extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: _TombolAksiBesar(
+              child: TombolWarkop(
                 label: 'Laporan',
                 ikon: Icons.assessment_rounded,
                 saatDitekan: () => context.go(Rute.laporan),
@@ -833,7 +810,7 @@ class _AksiCepat extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _TombolAksiKaca(
+              child: TombolWarkop(
                 label: 'Kelola Kasir',
                 ikon: Icons.manage_accounts_outlined,
                 saatDitekan: () => context.go(Rute.akunKasir),
@@ -845,7 +822,7 @@ class _AksiCepat extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: _TombolAksiKaca(
+              child: TombolWarkop(
                 label: 'Stok',
                 ikon: Icons.inventory_2_outlined,
                 saatDitekan: () => context.go(Rute.stok),
@@ -853,7 +830,7 @@ class _AksiCepat extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _TombolAksiKaca(
+              child: TombolWarkop(
                 label: 'Uji Printer',
                 ikon: Icons.print_outlined,
                 saatDitekan: () => _bukaUjiPrinter(context),
@@ -866,125 +843,6 @@ class _AksiCepat extends StatelessWidget {
   }
 }
 
-/// Tombol primer gradien violet — satu-satunya elemen solid.
-class _TombolAksiBesar extends StatelessWidget {
-  const _TombolAksiBesar({
-    required this.label,
-    required this.ikon,
-    required this.saatDitekan,
-  });
-
-  final String label;
-  final IconData ikon;
-  final VoidCallback saatDitekan;
-
-  @override
-  Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        saatDitekan();
-      },
-      child: Container(
-        height: 60,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [aksen, WarnaWarkop.aksenGelapHover],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: aksen.withValues(alpha: 0.35),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(ikon, color: Colors.white, size: 22),
-            const SizedBox(width: 10),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Tombol aksi gaya kaca — tinggi tetap agar sejajar dalam baris.
-class _TombolAksiKaca extends StatelessWidget {
-  const _TombolAksiKaca({
-    required this.label,
-    required this.ikon,
-    required this.saatDitekan,
-  });
-
-  final String label;
-  final IconData ikon;
-  final VoidCallback saatDitekan;
-
-  @override
-  Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          HapticFeedback.lightImpact();
-          saatDitekan();
-        },
-        child: Container(
-          height: 60,
-          decoration: BoxDecoration(
-            color: gelap
-                ? WarnaWarkop.kacaGelapSedang
-                : WarnaWarkop.kacaTerangSedang,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: gelap
-                  ? WarnaWarkop.borderKacaGelap
-                  : WarnaWarkop.borderKacaTerang,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(ikon, color: aksen, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: gelap
-                          ? WarnaWarkop.teksGelap
-                          : WarnaWarkop.teksTerang,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _JudulBagian extends StatelessWidget {
   const _JudulBagian(this.teks);
 
@@ -992,14 +850,13 @@ class _JudulBagian extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final skema = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         teks,
         style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: aksen,
+              color: skema.primary,
               fontWeight: FontWeight.w700,
             ),
       ),
@@ -1167,7 +1024,7 @@ class _LembarUjiPrinterState extends ConsumerState<_LembarUjiPrinter> {
           Row(
             children: [
               Expanded(
-                child: TombolKaca(
+                child: TombolWarkop(
                   label: 'Pindai Ulang',
                   ikon: Icons.refresh_outlined,
                   saatDitekan: _pindaiUlang,
@@ -1175,12 +1032,11 @@ class _LembarUjiPrinterState extends ConsumerState<_LembarUjiPrinter> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: TombolKaca(
+                child: TombolWarkop(
                   label: 'Hubungkan',
                   ikon: Icons.bluetooth_outlined,
                   memuat: _menghubungkan,
-                  aktif: _terpilih != null,
-                  saatDitekan: _hubungkan,
+                  saatDitekan: _terpilih != null ? _hubungkan : null,
                 ),
               ),
             ],
@@ -1201,7 +1057,7 @@ class _LembarUjiPrinterState extends ConsumerState<_LembarUjiPrinter> {
                             ? Icons.bluetooth_connected_outlined
                             : Icons.bluetooth_disabled_outlined,
                         color: tersambung
-                            ? WarnaWarkop.hijauAman
+                            ? Theme.of(context).colorScheme.secondary
                             : Theme.of(context).colorScheme.outline,
                       ),
                       const SizedBox(width: 8),
@@ -1212,12 +1068,11 @@ class _LembarUjiPrinterState extends ConsumerState<_LembarUjiPrinter> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  TombolKaca(
+                  TombolWarkop(
                     label: 'Cetak Teks Uji',
                     ikon: Icons.print_outlined,
                     memuat: _mencetak,
-                    aktif: tersambung,
-                    saatDitekan: _cetakUji,
+                    saatDitekan: tersambung ? _cetakUji : null,
                   ),
                 ],
               );

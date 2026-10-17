@@ -3,11 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/tema/token_tipografi.dart';
-import '../../../app/tema/token_warna.dart';
 import '../../../bersama/format/format_uang.dart';
 import '../../../bersama/util/id_unik.dart';
-import '../../../bersama/widget/kartu_kaca.dart';
-import '../../../bersama/widget/tombol_kaca.dart';
+import '../../../bersama/widget/kartu_warkop.dart';
+import '../../../bersama/widget/status_error.dart';
+import '../../../bersama/widget/status_kosong.dart';
+import '../../../bersama/widget/tombol_warkop.dart';
 import '../../../data/lokal/database_lokal.dart';
 import '../../../data/model/log_audit.dart';
 import '../../../data/model/menu.dart';
@@ -116,15 +117,16 @@ class LayarKombo extends ConsumerWidget {
                   saatTap: (data) => _bukaUbahPaket(context, ref, data),
                   saatToggle: (data) => _toggleAktif(ref, context, data),
                 ),
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
-                error: (e, _) => _GalatPaket(pesan: '$e'),
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => StatusError(
+                  saatCobaLagi: () => ref.invalidate(_penyediaPaketKombo),
+                ),
               ),
             ),
             // ── Aksi utama di area bawah layar ─────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              child: TombolKaca(
+              child: TombolWarkop(
                 label: 'Paket Baru',
                 ikon: Icons.add_circle_outline,
                 saatDitekan: () => _bukaPaketBaru(context, ref),
@@ -151,15 +153,12 @@ class _IsiDaftarPaket extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (daftar.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(20),
-        child: KartuKaca(
-          tanpaBlur: true,
-          child: Text(
-            'Belum ada paket kombo. Ketuk "Paket Baru" '
-            'di bawah untuk membuat paket pertama.',
-          ),
-        ),
+      return const StatusKosong(
+        judul: 'Belum ada paket kombo',
+        deskripsi:
+            'Ketuk "Paket Baru" di bawah '
+            'untuk membuat paket pertama.',
+        inisial: 'K',
       );
     }
     return ListView.builder(
@@ -172,24 +171,6 @@ class _IsiDaftarPaket extends StatelessWidget {
           saatTap: () => saatTap(daftar[i]),
           saatToggle: () => saatToggle(daftar[i]),
         ),
-      ),
-    );
-  }
-}
-
-class _GalatPaket extends StatelessWidget {
-  const _GalatPaket({required this.pesan});
-
-  final String pesan;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: KartuKaca(
-        tanpaBlur: true,
-        border: WarnaWarkop.merahMenyala.withValues(alpha: 0.45),
-        child: Text('Gagal memuat paket: $pesan'),
       ),
     );
   }
@@ -208,50 +189,56 @@ class _BarisPaket extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
     final paket = data.paket;
 
-    return GestureDetector(
-      onTap: saatTap,
-      behavior: HitTestBehavior.opaque,
-      child: Opacity(
-        opacity: paket.aktif ? 1.0 : 0.6,
-        child: KartuKaca(
-          tanpaBlur: true,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      paket.nama,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
+    return Opacity(
+      opacity: paket.aktif ? 1.0 : 0.6,
+      child: KartuWarkop(
+        saatDitekan: saatTap,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    paket.nama,
+                    style: gayaTeks.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${formatRupiah(paket.hargaPaket)} · '
-                      'isi ${data.rincian.length} menu',
-                      style: TipografiWarkop.nominal.copyWith(
-                        fontSize: 14,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.75),
-                      ),
-                    ),
-                  ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${formatRupiah(paket.hargaPaket)} · '
+                    'isi ${data.rincian.length} menu',
+                    style: gayaTeks.labelLarge
+                        ?.merge(TipografiWarkop.nominal)
+                        .copyWith(
+                          color: skema.onSurface.withValues(alpha: 0.75),
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  paket.aktif ? 'Aktif' : 'Nonaktif',
+                  style: gayaTeks.labelSmall?.copyWith(
+                    color: paket.aktif
+                        ? skema.secondary
+                        : skema.onSurface.withValues(alpha: 0.6),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              Switch(
-                value: paket.aktif,
-                onChanged: (_) => saatToggle(),
-              ),
-            ],
-          ),
+                Switch(value: paket.aktif, onChanged: (_) => saatToggle()),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -272,12 +259,13 @@ class _BingkaiLembar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.88,
       decoration: BoxDecoration(
-        color: gelap ? WarnaWarkop.kertasGelap : WarnaWarkop.kertasTerang,
+        color: skema.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SafeArea(
@@ -290,10 +278,7 @@ class _BingkaiLembar extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.25),
+                  color: skema.onSurface.withValues(alpha: 0.25),
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -303,22 +288,18 @@ class _BingkaiLembar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
                 judul,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                style: gayaTeks.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
                 subjudul,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.65),
-                    ),
+                style: gayaTeks.bodyMedium?.copyWith(
+                  color: skema.onSurface.withValues(alpha: 0.65),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -332,18 +313,16 @@ class _BingkaiLembar extends StatelessWidget {
 
 /// Stepper jumlah isi paket per menu (0 = tidak ikut paket).
 class _StepperJumlah extends StatelessWidget {
-  const _StepperJumlah({
-    required this.jumlah,
-    required this.saatUbah,
-  });
+  const _StepperJumlah({required this.jumlah, required this.saatUbah});
 
   final int jumlah;
   final ValueChanged<int> saatUbah;
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
+    final aksen = skema.primary;
 
     Widget tombol(String label, VoidCallback aksi) {
       return GestureDetector(
@@ -362,10 +341,9 @@ class _StepperJumlah extends StatelessWidget {
           ),
           child: Text(
             label,
-            style: TipografiWarkop.nominal.copyWith(
-              fontSize: 18,
-              color: aksen,
-            ),
+            style: gayaTeks.titleLarge
+                ?.merge(TipografiWarkop.nominal)
+                .copyWith(color: aksen),
           ),
         ),
       );
@@ -380,7 +358,7 @@ class _StepperJumlah extends StatelessWidget {
           child: Text(
             '$jumlah',
             textAlign: TextAlign.center,
-            style: TipografiWarkop.nominal.copyWith(fontSize: 16),
+            style: gayaTeks.bodyLarge?.merge(TipografiWarkop.nominal),
           ),
         ),
         tombol('+', () => saatUbah((jumlah + 1).clamp(0, 99))),
@@ -403,46 +381,48 @@ class _BarisPilihMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: KartuKaca(
-        tanpaBlur: true,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        border: jumlah > 0
-            ? (Theme.of(context).brightness == Brightness.dark
-                    ? WarnaWarkop.aksenGelap
-                    : WarnaWarkop.aksenTerang)
-                .withValues(alpha: 0.5)
-            : null,
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    menu.nama,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
+
+    final isi = KartuWarkop(
+      margin: const EdgeInsets.all(1.5),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  menu.nama,
+                  style: gayaTeks.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
-                  Text(
-                    formatRupiah(menu.hargaSatuan),
-                    style: TipografiWarkop.nominal.copyWith(
-                      fontSize: 13,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.6),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                Text(
+                  formatRupiah(menu.hargaSatuan),
+                  style: gayaTeks.bodySmall
+                      ?.merge(TipografiWarkop.nominal)
+                      .copyWith(color: skema.onSurface.withValues(alpha: 0.6)),
+                ),
+              ],
             ),
-            _StepperJumlah(jumlah: jumlah, saatUbah: saatUbah),
-          ],
+          ),
+          _StepperJumlah(jumlah: jumlah, saatUbah: saatUbah),
+        ],
+      ),
+    );
+
+    if (jumlah <= 0) return isi;
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(
+          color: skema.primary.withValues(alpha: 0.5),
+          width: 1.5,
         ),
       ),
+      child: isi,
     );
   }
 }
@@ -460,41 +440,32 @@ class _LembarPaketBaru extends ConsumerWidget {
     return menuAsync.when(
       data: _lembarIsi,
       loading: _lembarMemuat,
-      error: _lembarGalat,
+      error: (e, _) => _BingkaiLembar(
+        judul: 'Paket Baru',
+        subjudul: 'Isi nama, harga, lalu pilih menu sebagai isi paket.',
+        child: StatusError(
+          saatCobaLagi: () => ref.invalidate(_penyediaMenuKombo),
+        ),
+      ),
     );
   }
 
   Widget _lembarIsi(List<Menu> semuaMenu) => _BingkaiLembar(
-        judul: 'Paket Baru',
-        subjudul: 'Isi nama, harga, lalu pilih menu sebagai isi paket.',
-        child: _FormulirPaketBaru(
-          semuaMenu: semuaMenu,
-          saatSimpan: saatSimpan,
-        ),
-      );
+    judul: 'Paket Baru',
+    subjudul: 'Isi nama, harga, lalu pilih menu sebagai isi paket.',
+    child: _FormulirPaketBaru(semuaMenu: semuaMenu, saatSimpan: saatSimpan),
+  );
 
   Widget _lembarMemuat() => const _BingkaiLembar(
-        judul: 'Paket Baru',
-        subjudul: 'Isi nama, harga, lalu pilih menu sebagai isi paket.',
-        child: Center(child: CircularProgressIndicator()),
-      );
-
-  Widget _lembarGalat(Object e, StackTrace _) => _BingkaiLembar(
-        judul: 'Paket Baru',
-        subjudul: 'Isi nama, harga, lalu pilih menu sebagai isi paket.',
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Text('Gagal memuat menu: $e'),
-        ),
-      );
+    judul: 'Paket Baru',
+    subjudul: 'Isi nama, harga, lalu pilih menu sebagai isi paket.',
+    child: Center(child: CircularProgressIndicator()),
+  );
 }
 
 /// Formulir paket baru: nama + harga + stepper isi paket + tombol simpan.
 class _FormulirPaketBaru extends StatefulWidget {
-  const _FormulirPaketBaru({
-    required this.semuaMenu,
-    required this.saatSimpan,
-  });
+  const _FormulirPaketBaru({required this.semuaMenu, required this.saatSimpan});
 
   final List<Menu> semuaMenu;
   final VoidCallback saatSimpan;
@@ -578,13 +549,16 @@ class _FormulirPaketBaruState extends State<_FormulirPaketBaru> {
     widget.saatSimpan();
     HapticFeedback.mediumImpact();
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Paket "$nama" dibuat')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Paket "$nama" dibuat')));
   }
 
   @override
   Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -606,7 +580,7 @@ class _FormulirPaketBaruState extends State<_FormulirPaketBaru> {
             controller: _kontrolHarga,
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            style: TipografiWarkop.nominal,
+            style: gayaTeks.bodyLarge?.merge(TipografiWarkop.nominal),
             decoration: const InputDecoration(
               labelText: 'Harga paket (Rp) *',
               hintText: 'mis. 25000',
@@ -618,10 +592,10 @@ class _FormulirPaketBaruState extends State<_FormulirPaketBaru> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text(
             'ISI PAKET',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                ),
+            style: gayaTeks.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -644,15 +618,15 @@ class _FormulirPaketBaruState extends State<_FormulirPaketBaru> {
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
             child: Text(
               _galat!,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: WarnaWarkop.merahMenyala,
-                    fontWeight: FontWeight.w600,
-                  ),
+              style: gayaTeks.bodySmall?.copyWith(
+                color: skema.error,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: TombolKaca(
+          child: TombolWarkop(
             label: 'Simpan Paket',
             ikon: Icons.save_outlined,
             memuat: _menyimpan,
@@ -678,34 +652,31 @@ class _LembarUbahPaket extends ConsumerWidget {
     return menuAsync.when(
       data: _lembarIsi,
       loading: _lembarMemuat,
-      error: _lembarGalat,
+      error: (e, _) => _BingkaiLembar(
+        judul: 'Ubah Paket',
+        subjudul: 'Ubah nama, harga, status, atau komposisi isi paket.',
+        child: StatusError(
+          saatCobaLagi: () => ref.invalidate(_penyediaMenuKombo),
+        ),
+      ),
     );
   }
 
   Widget _lembarIsi(List<Menu> semuaMenu) => _BingkaiLembar(
-        judul: 'Ubah Paket',
-        subjudul: 'Ubah nama, harga, status, atau komposisi isi paket.',
-        child: _FormulirUbahPaket(
-          data: data,
-          semuaMenu: semuaMenu,
-          saatSimpan: saatSimpan,
-        ),
-      );
+    judul: 'Ubah Paket',
+    subjudul: 'Ubah nama, harga, status, atau komposisi isi paket.',
+    child: _FormulirUbahPaket(
+      data: data,
+      semuaMenu: semuaMenu,
+      saatSimpan: saatSimpan,
+    ),
+  );
 
   Widget _lembarMemuat() => const _BingkaiLembar(
-        judul: 'Ubah Paket',
-        subjudul: 'Ubah nama, harga, status, atau komposisi isi paket.',
-        child: Center(child: CircularProgressIndicator()),
-      );
-
-  Widget _lembarGalat(Object e, StackTrace _) => _BingkaiLembar(
-        judul: 'Ubah Paket',
-        subjudul: 'Ubah nama, harga, status, atau komposisi isi paket.',
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Text('Gagal memuat menu: $e'),
-        ),
-      );
+    judul: 'Ubah Paket',
+    subjudul: 'Ubah nama, harga, status, atau komposisi isi paket.',
+    child: Center(child: CircularProgressIndicator()),
+  );
 }
 
 /// Formulir ubah paket: nama, harga, status aktif, komposisi, tombol hapus.
@@ -736,8 +707,9 @@ class _FormulirUbahPaketState extends State<_FormulirUbahPaket> {
   void initState() {
     super.initState();
     _kontrolNama = TextEditingController(text: widget.data.paket.nama);
-    _kontrolHarga =
-        TextEditingController(text: '${widget.data.paket.hargaPaket}');
+    _kontrolHarga = TextEditingController(
+      text: '${widget.data.paket.hargaPaket}',
+    );
     _aktif = widget.data.paket.aktif;
     for (final r in widget.data.rincian) {
       _jumlah[r.idMenu] = r.jumlah;
@@ -799,9 +771,9 @@ class _FormulirUbahPaketState extends State<_FormulirUbahPaket> {
     widget.saatSimpan();
     HapticFeedback.mediumImpact();
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Paket diperbarui')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Paket diperbarui')));
   }
 
   Future<void> _konfirmasiHapus() async {
@@ -818,9 +790,11 @@ class _FormulirUbahPaketState extends State<_FormulirUbahPaket> {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('Batal'),
           ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Hapus'),
+          TombolWarkop(
+            label: 'Hapus',
+            varian: VarianTombol.bahaya,
+            lebarPenuh: false,
+            saatDitekan: () => Navigator.of(ctx).pop(true),
           ),
         ],
       ),
@@ -843,13 +817,15 @@ class _FormulirUbahPaketState extends State<_FormulirUbahPaket> {
     widget.saatSimpan();
     HapticFeedback.mediumImpact();
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Paket dihapus')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Paket dihapus')));
   }
 
   @override
   Widget build(BuildContext context) {
+    final gayaTeks = Theme.of(context).textTheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -868,7 +844,7 @@ class _FormulirUbahPaketState extends State<_FormulirUbahPaket> {
             controller: _kontrolHarga,
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            style: TipografiWarkop.nominal,
+            style: gayaTeks.bodyLarge?.merge(TipografiWarkop.nominal),
             decoration: const InputDecoration(labelText: 'Harga paket (Rp)'),
           ),
         ),
@@ -888,10 +864,10 @@ class _FormulirUbahPaketState extends State<_FormulirUbahPaket> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text(
             'ISI PAKET',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                ),
+            style: gayaTeks.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -911,7 +887,7 @@ class _FormulirUbahPaketState extends State<_FormulirUbahPaket> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-          child: TombolKaca(
+          child: TombolWarkop(
             label: 'Simpan Perubahan',
             ikon: Icons.save_outlined,
             memuat: _menyimpan,
@@ -920,9 +896,10 @@ class _FormulirUbahPaketState extends State<_FormulirUbahPaket> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: TombolKaca(
+          child: TombolWarkop(
             label: 'Hapus Paket',
             ikon: Icons.delete_outline,
+            varian: VarianTombol.bahaya,
             memuat: _menghapus,
             saatDitekan: _konfirmasiHapus,
           ),

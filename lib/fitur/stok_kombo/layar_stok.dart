@@ -5,10 +5,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
 import '../../../app/tema/token_tipografi.dart';
-import '../../../app/tema/token_warna.dart';
 import '../../../bersama/util/id_unik.dart';
-import '../../../bersama/widget/kartu_kaca.dart';
-import '../../../bersama/widget/tombol_kaca.dart';
+import '../../../bersama/widget/kartu_warkop.dart';
+import '../../../bersama/widget/status_error.dart';
+import '../../../bersama/widget/status_kosong.dart';
+import '../../../bersama/widget/tombol_warkop.dart';
 import '../../../data/lokal/database_lokal.dart';
 import '../../../data/model/kategori_menu.dart';
 import '../../../data/model/log_audit.dart';
@@ -38,12 +39,15 @@ class LayarStok extends ConsumerWidget {
           data: (semuaMenu) => kategoriAsync.when(
             data: (kategoris) =>
                 _IsiStok(semuaMenu: semuaMenu, kategoris: kategoris),
-            loading: () =>
-                const Center(child: CircularProgressIndicator()),
-            error: (e, _) => _PesanGalat(pesan: '$e'),
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => StatusError(
+              saatCobaLagi: () => ref.invalidate(penyediaKategoriStokBersama),
+            ),
           ),
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => _PesanGalat(pesan: '$e'),
+          error: (e, _) => StatusError(
+            saatCobaLagi: () => ref.invalidate(penyediaMenuStokBersama),
+          ),
         ),
       ),
     );
@@ -77,6 +81,7 @@ class _IsiStok extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final skema = Theme.of(context).colorScheme;
     final jumlahMenipis = semuaMenu.where(_menipis).length;
     final jumlahHabis = semuaMenu.where(_habis).length;
 
@@ -111,7 +116,7 @@ class _IsiStok extends ConsumerWidget {
                 child: _KartuRingkasan(
                   label: 'Menipis',
                   jumlah: jumlahMenipis,
-                  warna: WarnaWarkop.kuningAntre,
+                  warna: skema.tertiary,
                 ),
               ),
               const SizedBox(width: 12),
@@ -119,7 +124,7 @@ class _IsiStok extends ConsumerWidget {
                 child: _KartuRingkasan(
                   label: 'Habis',
                   jumlah: jumlahHabis,
-                  warna: WarnaWarkop.merahMenyala,
+                  warna: skema.error,
                 ),
               ),
             ],
@@ -167,14 +172,10 @@ class _IsiStok extends ConsumerWidget {
         // ── Daftar per kategori ──────────────────────────────────
         Expanded(
           child: semuaMenu.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: KartuKaca(
-                    tanpaBlur: true,
-                    child: Text(
-                      'Belum ada menu. Tambahkan menu dulu dari modul kasir.',
-                    ),
-                  ),
+              ? const StatusKosong(
+                  judul: 'Belum ada menu',
+                  deskripsi: 'Tambahkan menu dulu dari modul kasir.',
+                  inisial: 'M',
                 )
               : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
@@ -223,8 +224,9 @@ class _TombolShortcut extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
+    final aksen = skema.primary;
 
     return GestureDetector(
       onTap: () {
@@ -246,10 +248,10 @@ class _TombolShortcut extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: aksen,
-                    fontWeight: FontWeight.w600,
-                  ),
+              style: gayaTeks.labelSmall?.copyWith(
+                color: aksen,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -270,9 +272,9 @@ class _HeaderKategori extends StatelessWidget {
       child: Text(
         judul.toUpperCase(),
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-            ),
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
+        ),
       ),
     );
   }
@@ -291,25 +293,30 @@ class _KartuRingkasan extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return KartuKaca(
-      tanpaBlur: true,
-      border: warna.withValues(alpha: 0.45),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$jumlah',
-            style: TipografiWarkop.nominal.copyWith(
-              fontSize: 30,
-              color: warna,
+    final gayaTeks = Theme.of(context).textTheme;
+
+    // KartuWarkop tidak punya parameter border — bingkai warna
+    // dipasang lewat pembungkus agar tepi tetap sejajar dengan kartu.
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: warna.withValues(alpha: 0.45), width: 1.5),
+      ),
+      child: KartuWarkop(
+        margin: const EdgeInsets.all(1.5),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$jumlah',
+              style: gayaTeks.displayLarge
+                  ?.merge(TipografiWarkop.nominal)
+                  .copyWith(color: warna),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'item $label',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text('item $label', style: gayaTeks.bodyMedium),
+          ],
+        ),
       ),
     );
   }
@@ -323,85 +330,90 @@ class _BarisMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
     final habis = menu.stok <= 0;
     final menipis = !habis && menu.stok <= menu.stokMinimum;
 
-    return GestureDetector(
-      onTap: saatTap,
-      behavior: HitTestBehavior.opaque,
-      child: KartuKaca(
-        tanpaBlur: true,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          menu.nama,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
+    return KartuWarkop(
+      saatDitekan: saatTap,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        menu.nama,
+                        style: gayaTeks.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      if (habis)
-                        const _BadgeStok(
-                          teks: 'Habis',
-                          warna: WarnaWarkop.merahMenyala,
-                        )
-                      else if (menipis)
-                        const _BadgeStok(
-                          teks: 'Menipis',
-                          warna: WarnaWarkop.kuningAntre,
-                        ),
-                    ],
+                    ),
+                    if (habis)
+                      _BadgeStok(
+                        teks: 'Habis',
+                        ikon: Icons.remove_shopping_cart_outlined,
+                        warna: skema.error,
+                      )
+                    else if (menipis)
+                      _BadgeStok(
+                        teks: 'Menipis',
+                        ikon: Icons.warning_amber_rounded,
+                        warna: skema.tertiary,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'min. ${menu.stokMinimum} · '
+                  '${menu.tersedia ? 'dijual' : 'tidak dijual'}',
+                  style: gayaTeks.bodySmall?.copyWith(
+                    color: skema.onSurface.withValues(alpha: 0.6),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'min. ${menu.stokMinimum} · '
-                    '${menu.tersedia ? 'dijual' : 'tidak dijual'}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.6),
-                        ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Text(
-              '${menu.stok}',
-              style: TipografiWarkop.nominal.copyWith(
-                fontSize: 26,
-                color: habis
-                    ? WarnaWarkop.merahMenyala
-                    : menipis
-                        ? WarnaWarkop.kuningAntre
-                        : Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '${menu.stok}',
+            style: gayaTeks.displayLarge
+                ?.merge(TipografiWarkop.nominal)
+                .copyWith(
+                  color: habis
+                      ? skema.error
+                      : menipis
+                      ? skema.tertiary
+                      : skema.onSurface,
+                ),
+          ),
+        ],
       ),
     );
   }
 }
 
+/// Badge status stok: warna + ikon + teks (tidak mengandalkan warna saja).
 class _BadgeStok extends StatelessWidget {
-  const _BadgeStok({required this.teks, required this.warna});
+  const _BadgeStok({
+    required this.teks,
+    required this.ikon,
+    required this.warna,
+  });
 
   final String teks;
+  final IconData ikon;
   final Color warna;
 
   @override
   Widget build(BuildContext context) {
+    final gayaTeks = Theme.of(context).textTheme;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -409,30 +421,19 @@ class _BadgeStok extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: warna.withValues(alpha: 0.5)),
       ),
-      child: Text(
-        teks,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(ikon, size: 14, color: warna),
+          const SizedBox(width: 4),
+          Text(
+            teks,
+            style: gayaTeks.labelSmall?.copyWith(
               color: warna,
               fontWeight: FontWeight.w700,
             ),
-      ),
-    );
-  }
-}
-
-class _PesanGalat extends StatelessWidget {
-  const _PesanGalat({required this.pesan});
-
-  final String pesan;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: KartuKaca(
-        tanpaBlur: true,
-        border: WarnaWarkop.merahMenyala.withValues(alpha: 0.45),
-        child: Text('Gagal memuat stok: $pesan'),
+          ),
+        ],
       ),
     );
   }
@@ -459,8 +460,7 @@ class _LembarKelolaStokState extends State<_LembarKelolaStok> {
   void initState() {
     super.initState();
     _kontrolStok = TextEditingController(text: '${widget.menu.stok}');
-    _kontrolMinimum =
-        TextEditingController(text: '${widget.menu.stokMinimum}');
+    _kontrolMinimum = TextEditingController(text: '${widget.menu.stokMinimum}');
     _tersedia = widget.menu.tersedia;
   }
 
@@ -482,11 +482,15 @@ class _LembarKelolaStokState extends State<_LembarKelolaStok> {
     if (_menyimpan) return;
     setState(() => _menyimpan = true);
 
-    final stok = (int.tryParse(_kontrolStok.text) ?? widget.menu.stok)
-        .clamp(0, 999999);
+    final stok = (int.tryParse(_kontrolStok.text) ?? widget.menu.stok).clamp(
+      0,
+      999999,
+    );
     final minimum =
-        (int.tryParse(_kontrolMinimum.text) ?? widget.menu.stokMinimum)
-            .clamp(0, 999999);
+        (int.tryParse(_kontrolMinimum.text) ?? widget.menu.stokMinimum).clamp(
+          0,
+          999999,
+        );
 
     final db = DatabaseLokal.instance;
     await db.perbaruiMenu(
@@ -510,18 +514,19 @@ class _LembarKelolaStokState extends State<_LembarKelolaStok> {
     widget.saatSimpan();
     HapticFeedback.mediumImpact();
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Stok diperbarui')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Stok diperbarui')));
   }
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
 
     return Container(
       decoration: BoxDecoration(
-        color: gelap ? WarnaWarkop.kertasGelap : WarnaWarkop.kertasTerang,
+        color: skema.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SafeArea(
@@ -536,10 +541,7 @@ class _LembarKelolaStokState extends State<_LembarKelolaStok> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.25),
+                    color: skema.onSurface.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
@@ -547,29 +549,24 @@ class _LembarKelolaStokState extends State<_LembarKelolaStok> {
               const SizedBox(height: 16),
               Text(
                 'Kelola Stok',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                style: gayaTeks.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               Text(
                 widget.menu.nama,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.65),
-                    ),
+                style: gayaTeks.bodyMedium?.copyWith(
+                  color: skema.onSurface.withValues(alpha: 0.65),
+                ),
               ),
               const SizedBox(height: 16),
-              Text('Jumlah stok',
-                  style: Theme.of(context).textTheme.labelLarge),
+              Text('Jumlah stok', style: gayaTeks.labelLarge),
               const SizedBox(height: 8),
               TextField(
                 controller: _kontrolStok,
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: TipografiWarkop.nominal.copyWith(fontSize: 20),
+                style: gayaTeks.titleLarge?.merge(TipografiWarkop.nominal),
                 decoration: const InputDecoration(
                   hintText: 'Isi jumlah stok, atau pakai tombol cepat',
                 ),
@@ -590,13 +587,13 @@ class _LembarKelolaStokState extends State<_LembarKelolaStok> {
                 ],
               ),
               const SizedBox(height: 16),
-              Text('Stok minimum', style: Theme.of(context).textTheme.labelLarge),
+              Text('Stok minimum', style: gayaTeks.labelLarge),
               const SizedBox(height: 8),
               TextField(
                 controller: _kontrolMinimum,
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: TipografiWarkop.nominal.copyWith(fontSize: 20),
+                style: gayaTeks.titleLarge?.merge(TipografiWarkop.nominal),
                 decoration: const InputDecoration(
                   hintText: 'Batas peringatan menipis',
                 ),
@@ -612,7 +609,7 @@ class _LembarKelolaStokState extends State<_LembarKelolaStok> {
                 },
               ),
               const SizedBox(height: 8),
-              TombolKaca(
+              TombolWarkop(
                 label: 'Simpan Stok',
                 ikon: Icons.save_outlined,
                 memuat: _menyimpan,
@@ -642,8 +639,9 @@ class _TombolGeserState extends State<_TombolGeser> {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
+    final aksen = skema.primary;
 
     return AnimatedScale(
       scale: _skala,
@@ -664,10 +662,9 @@ class _TombolGeserState extends State<_TombolGeser> {
           ),
           child: Text(
             widget.label,
-            style: TipografiWarkop.nominal.copyWith(
-              fontSize: 16,
-              color: aksen,
-            ),
+            style: gayaTeks.bodyLarge
+                ?.merge(TipografiWarkop.nominal)
+                .copyWith(color: aksen),
           ),
         ),
       ),

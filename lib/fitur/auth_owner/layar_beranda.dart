@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/model/pemilik.dart';
 import '../../app/penyedia.dart';
 import '../../app/tema/token_tipografi.dart';
-import '../../app/tema/token_warna.dart';
-import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
 
 /// Beranda sementara — diganti modul kasir pada tahap berikutnya.
 ///
@@ -17,11 +17,11 @@ class LayarBeranda extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profilAsync = ref.watch(penyediaProfilPemilik);
-    final gelap = ref.watch(penyediaModeGelap);
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('BERANDA')),
+      appBar: AppBar(title: const Text('Beranda')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -32,7 +32,7 @@ class LayarBeranda extends ConsumerWidget {
                 'WARKOP DOA AMBU',
                 style: TipografiWarkop.judulBrand.copyWith(
                   fontSize: 26,
-                  color: aksen,
+                  color: skema.primary,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -40,27 +40,34 @@ class LayarBeranda extends ConsumerWidget {
               Text(
                 'Modul pendaftaran owner selesai 🎉',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: gayaTeks.bodyMedium?.copyWith(
+                  color: skema.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 20),
               profilAsync.when(
                 data: (profil) => profil == null
-                    ? const KartuKaca(
+                    ? const KartuWarkop(
                         child: Text('Belum ada profil tersimpan.'),
                       )
                     : _DetailProfil(profil: profil),
                 loading: () =>
                     const Center(child: CircularProgressIndicator()),
-                error: (e, _) => KartuKaca(child: Text('Error: $e')),
+                error: (e, _) => StatusError(
+                  pesan: 'Gagal memuat profil. Coba lagi ya.',
+                  saatCobaLagi: () =>
+                      ref.invalidate(penyediaProfilPemilik),
+                ),
               ),
               const SizedBox(height: 16),
-              KartuKaca(
-                tanpaBlur: true,
+              KartuWarkop(
                 child: Text(
                   'Tahap berikutnya: modul kasir (grid menu, keranjang, '
                   'open bill, shift, kasbon, kas keluar, void PIN owner, '
                   'kamera bukti transfer, cetak Bluetooth).',
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  style: gayaTeks.bodyMedium?.copyWith(
+                    color: skema.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],
@@ -78,7 +85,7 @@ class _DetailProfil extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return KartuKaca(
+    return KartuWarkop(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -111,6 +118,7 @@ class _Baris extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final gayaTeks = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -120,15 +128,17 @@ class _Baris extends StatelessWidget {
             width: 120,
             child: Text(
               label,
-              style: Theme.of(context).textTheme.bodyMedium,
+              style: gayaTeks.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           Expanded(
             child: Text(
               nilai,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+              style: gayaTeks.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
