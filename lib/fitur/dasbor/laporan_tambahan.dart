@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/waktu_wib.dart';
-import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 
 /// Periode untuk laporan tambahan: hari / minggu / bulan ini (WIB).
@@ -155,13 +155,11 @@ class _BagianMenuTerlarisState extends State<BagianMenuTerlaris> {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    final teksRedup =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
+    final skema = Theme.of(context).colorScheme;
+    final aksen = skema.primary;
+    final teksRedup = skema.onSurfaceVariant;
 
-    return KartuKaca(
-      tanpaBlur: true,
+    return KartuWarkop(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -319,14 +317,14 @@ class _BagianRekapMetodeBayarState extends State<BagianRekapMetodeBayar> {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    final teksRedup =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
-    final hijau = WarnaWarkop.hijauAman;
+    final skema = Theme.of(context).colorScheme;
+    final aksen = skema.primary;
+    final teksRedup = skema.onSurfaceVariant;
+    final hijau = Theme.of(context).brightness == Brightness.dark
+        ? WarnaWarkop.suksesGelap
+        : WarnaWarkop.suksesTerang;
 
-    return KartuKaca(
-      tanpaBlur: true,
+    return KartuWarkop(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

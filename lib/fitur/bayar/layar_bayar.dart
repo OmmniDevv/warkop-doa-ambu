@@ -9,13 +9,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../app/penyedia.dart';
 import '../../app/router.dart';
-import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/hitung_diskon.dart';
 import '../../bersama/util/id_unik.dart';
-import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/util/stok_aman.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
 import '../../bersama/widget/keypad_angka.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/log_audit.dart';
 import '../../data/model/pesanan.dart';
@@ -235,6 +236,19 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
   /// Unggah bukti berjalan di latar.
   Future<void> _selesaikan(Pesanan pesanan, List<PesananRincian> rincian) async {
     if (_memproses) return;
+    // Guard di-set SEGERA setelah cek (BUG-06): jangan biarkan validasi
+    // di bawah disisipi await di masa depan lalu guard jebol.
+    setState(() => _memproses = true);
+    try {
+      await _selesaikanInti(pesanan, rincian);
+    } finally {
+      if (mounted) setState(() => _memproses = false);
+    }
+  }
+
+  /// Inti penyelesaian pembayaran (dipanggil sekali, guard di _selesaikan).
+  Future<void> _selesaikanInti(
+      Pesanan pesanan, List<PesananRincian> rincian) async {
     final total = totalBersihNota(pesanan);
     final tunai = _metode == _Metode.tunai;
 
@@ -266,9 +280,8 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
       barisFinal = [_BarisBayar(metode: _metode, nominal: bayarTunggal)];
     }
 
-    setState(() => _memproses = true);
     final db = ref.read(penyediaDatabaseLokal);
-    try {
+    {
       final sekarang = DateTime.now();
       final lunas = pesanan.copyWith(
         status: 'lunas',
@@ -294,17 +307,18 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
       }
 
       // Kurangi stok tiap item menu + bahan resepnya. Kegagalan stok
-      // TIDAK boleh menggagalkan pembayaran — abaikan diam-diam.
+      // TIDAK boleh menggagalkan pembayaran (BUG-03): kumpulkan nama item
+      // yang gagal, catat ke log audit, tampilkan peringatan di dialog.
       final bahanMenipis = <String>[];
+      final stokGagal = <String>[];
       for (final baris in rincian) {
         final idMenu = baris.idMenu;
         if (idMenu == null) continue;
-        try {
-          await db.kurangiStok(idMenu, baris.jumlah);
-        } catch (_) {
-          // Abaikan: stok bisa dikoreksi manual kemudian.
-        }
-        try {
+        final namaMenu = baris.namaSnapshot;
+        final gagalMenu =
+            await kurangiStokAman(namaMenu, () => db.kurangiStok(idMenu, baris.jumlah));
+        if (gagalMenu != null) stokGagal.add(gagalMenu);
+        final gagalBahan = await kurangiStokAman(namaMenu, () async {
           final menipis =
               await db.kurangiStokBahanResep(idMenu, baris.jumlah);
           for (final bahan in menipis) {
@@ -312,8 +326,9 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
               bahanMenipis.add(bahan.nama);
             }
           }
-        } catch (_) {
-          // Abaikan: stok bahan bisa dikoreksi manual kemudian.
+        });
+        if (gagalBahan != null && !stokGagal.contains(gagalBahan)) {
+          stokGagal.add(gagalBahan);
         }
       }
 
@@ -328,6 +343,21 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
           dibuatPada: sekarang,
         ),
       );
+
+      // BUG-03: catat kegagalan pengurangan stok ke log audit.
+      if (stokGagal.isNotEmpty) {
+        await db.catatAudit(
+          LogAudit(
+            id: idBaru(),
+            aksi: 'stok_gagal_dikurangi',
+            idAkun: pesanan.idAkun,
+            idReferensi: pesanan.id,
+            detail:
+                '{"item":[${stokGagal.map((n) => '"$n"').join(',')}]}',
+            dibuatPada: DateTime.now(),
+          ),
+        );
+      }
 
       HapticFeedback.mediumImpact();
 
@@ -346,6 +376,7 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
           tunai: tunai && !_gabungan,
           kembalian: kembalian,
           bahanMenipis: bahanMenipis,
+          stokGagal: stokGagal,
         ),
       );
       if (!mounted) return;
@@ -354,8 +385,6 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
       } else {
         context.go(Rute.kasirPos);
       }
-    } finally {
-      if (mounted) setState(() => _memproses = false);
     }
   }
 
@@ -527,30 +556,10 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
 
   /// Layar pesan tengah + tombol kembali (untuk galat / status final).
   Widget _layarPesan(String pesan) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            KartuKaca(
-              tanpaBlur: true,
-              child: Text(
-                pesan,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-            ),
-            const SizedBox(height: 16),
-            TombolKaca(
-              label: 'Kembali',
-              ikon: Icons.arrow_back,
-              lebarPenuh: false,
-              saatDitekan: () => context.pop(),
-            ),
-          ],
-        ),
-      ),
+    return StatusError(
+      pesan: pesan,
+      labelTombol: 'Kembali',
+      saatCobaLagi: () => context.pop(),
     );
   }
 
@@ -621,12 +630,11 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
         // Tombol Selesaikan selalu terlihat (fixed di bawah).
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-          child: TombolKaca(
+          child: TombolWarkop(
             label: 'Selesaikan',
             ikon: Icons.check,
             memuat: _memproses,
-            aktif: bisaSelesai,
-            saatDitekan: () => _selesaikan(pesanan, rincian),
+            saatDitekan: bisaSelesai ? () => _selesaikan(pesanan, rincian) : null,
           ),
         ),
       ],
@@ -660,10 +668,8 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
         label: const Text('Tambah Baris Pembayaran'),
       ),
       const SizedBox(height: 8),
-      KartuKaca(
-        tanpaBlur: true,
-        tingkat: TingkatKaca.ringan,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      KartuWarkop(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Column(
           children: [
             Row(
@@ -688,8 +694,8 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
               style: tema.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: sisa == 0
-                    ? WarnaWarkop.hijauAman
-                    : WarnaWarkop.merahMenyala,
+                    ? skema.secondary
+                    : skema.error,
               ),
             ),
           ],
@@ -719,7 +725,7 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
     final pathFoto = _pathFoto;
 
     if (pathFoto == null) {
-      return TombolKaca(
+      return TombolWarkop(
         label: 'Ambil Foto Bukti',
         ikon: Icons.camera_alt_outlined,
         saatDitekan: _ambilFoto,
@@ -783,6 +789,7 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
   /// Isi zona aksi untuk pembayaran tunai (mode tunggal).
   List<Widget> _bangunTunai(int total) {
     final tema = Theme.of(context);
+    final skema = tema.colorScheme;
     final kurang = total - _bayarTunai;
 
     return [
@@ -834,7 +841,7 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
                 : 'Uang pas — tidak ada kembalian',
         style: tema.textTheme.titleMedium?.copyWith(
           fontWeight: FontWeight.w700,
-          color: kurang > 0 ? WarnaWarkop.merahMenyala : WarnaWarkop.hijauAman,
+          color: kurang > 0 ? skema.error : skema.secondary,
         ),
         textAlign: TextAlign.center,
       ),
@@ -896,10 +903,7 @@ class _NotaRingkas extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
-    final gelap = tema.brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    final teksRedup =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
+    final skema = tema.colorScheme;
     final potongan = hitungPotongan(
       pesanan.total,
       nominal: pesanan.diskonNotaNominal,
@@ -909,9 +913,8 @@ class _NotaRingkas extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: KartuKaca(
-        tanpaBlur: true,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: KartuWarkop(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -936,7 +939,7 @@ class _NotaRingkas extends StatelessWidget {
                         Text(
                           '$jumlahItem item',
                           style: tema.textTheme.bodySmall?.copyWith(
-                            color: teksRedup,
+                            color: skema.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -950,14 +953,14 @@ class _NotaRingkas extends StatelessWidget {
                           formatRupiah(pesanan.total),
                           style: tema.textTheme.bodySmall?.copyWith(
                             decoration: TextDecoration.lineThrough,
-                            color: teksRedup,
+                            color: skema.onSurfaceVariant,
                           ),
                         ),
                       Text(
                         formatRupiah(totalBersihNota(pesanan)),
                         style: tema.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: aksen,
+                          color: skema.primary,
                         ),
                       ),
                     ],
@@ -967,7 +970,7 @@ class _NotaRingkas extends StatelessWidget {
                     dibuka
                         ? Icons.expand_less_rounded
                         : Icons.expand_more_rounded,
-                    color: teksRedup,
+                    color: skema.onSurfaceVariant,
                   ),
                 ],
               ),
@@ -1032,11 +1035,10 @@ class _BarisDiskonNota extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
+    final skema = tema.colorScheme;
     final ada = potongan > 0;
 
-    return KartuKaca(
-      tanpaBlur: true,
-      tingkat: TingkatKaca.ringan,
+    return KartuWarkop(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: InkWell(
         onTap: saatAtur,
@@ -1069,7 +1071,7 @@ class _BarisDiskonNota extends StatelessWidget {
               Text(
                 '-${formatRupiah(potongan)}',
                 style: tema.textTheme.titleSmall?.copyWith(
-                  color: WarnaWarkop.hijauAman,
+                  color: skema.secondary,
                   fontWeight: FontWeight.w700,
                 ),
               )
@@ -1165,6 +1167,7 @@ class _DialogDiskonNotaState extends State<_DialogDiskonNota> {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
+    final skema = tema.colorScheme;
 
     return AlertDialog(
       title: const Text('Diskon Nota'),
@@ -1230,7 +1233,7 @@ class _DialogDiskonNotaState extends State<_DialogDiskonNota> {
             Text(
               'Potongan: ${formatRupiah(_potongan)}',
               style: tema.textTheme.bodyMedium?.copyWith(
-                color: WarnaWarkop.hijauAman,
+                color: skema.secondary,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1273,11 +1276,8 @@ class _UbinBarisBayar extends StatelessWidget {
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
 
-    return KartuKaca(
-      tanpaBlur: true,
-      tingkat: TingkatKaca.ringan,
-      radius: 14,
-      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+    return KartuWarkop(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
       child: Row(
         children: [
           SegmentedButton<_Metode>(
@@ -1365,9 +1365,8 @@ class _LembarNominalBayarState extends State<_LembarNominalBayar> {
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
 
-    return KartuKaca(
-      radius: 24,
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+    return KartuWarkop(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1432,7 +1431,7 @@ class _LembarNominalBayarState extends State<_LembarNominalBayar> {
               const SizedBox(width: 12),
               Expanded(
                 flex: 2,
-                child: TombolKaca(
+                child: TombolWarkop(
                   label: 'OK',
                   ikon: Icons.check,
                   saatDitekan: () =>
@@ -1467,8 +1466,6 @@ class _KartuMetode extends StatelessWidget {
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
     final skema = tema.colorScheme;
-    final gelap = tema.brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
 
     return GestureDetector(
       onTap: saatDipilih,
@@ -1476,11 +1473,11 @@ class _KartuMetode extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: BoxDecoration(
           color: dipilih
-              ? aksen.withValues(alpha: 0.10)
+              ? skema.primary.withValues(alpha: 0.10)
               : skema.surfaceContainerHighest.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: dipilih ? aksen : skema.outlineVariant,
+            color: dipilih ? skema.primary : skema.outlineVariant,
             width: dipilih ? 2 : 1,
           ),
         ),
@@ -1488,7 +1485,7 @@ class _KartuMetode extends StatelessWidget {
           children: [
             Icon(
               ikon,
-              color: dipilih ? aksen : skema.onSurfaceVariant,
+              color: dipilih ? skema.primary : skema.onSurfaceVariant,
               size: 28,
             ),
             const SizedBox(width: 10),
@@ -1500,7 +1497,7 @@ class _KartuMetode extends StatelessWidget {
                     judul,
                     style: tema.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: dipilih ? aksen : null,
+                      color: dipilih ? skema.primary : null,
                     ),
                   ),
                   Text(
@@ -1512,7 +1509,7 @@ class _KartuMetode extends StatelessWidget {
                 ],
               ),
             ),
-            if (dipilih) Icon(Icons.check_circle, color: aksen, size: 22),
+            if (dipilih) Icon(Icons.check_circle, color: skema.primary, size: 22),
           ],
         ),
       ),
@@ -1530,8 +1527,7 @@ class _ChipCepat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
-    final gelap = tema.brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final skema = tema.colorScheme;
 
     return GestureDetector(
       onTap: saatDitekan,
@@ -1539,11 +1535,11 @@ class _ChipCepat extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: aksen.withValues(alpha: 0.45)),
+          border: Border.all(color: skema.primary.withValues(alpha: 0.45)),
         ),
         child: Text(
           label,
-          style: tema.textTheme.labelLarge?.copyWith(color: aksen),
+          style: tema.textTheme.labelLarge?.copyWith(color: skema.primary),
         ),
       ),
     );
@@ -1556,6 +1552,7 @@ class _DialogSukses extends StatelessWidget {
     required this.tunai,
     required this.kembalian,
     this.bahanMenipis = const [],
+    this.stokGagal = const [],
   });
 
   final bool tunai;
@@ -1564,9 +1561,14 @@ class _DialogSukses extends StatelessWidget {
   /// Nama bahan yang stoknya kini menipis — tampilkan sebagai peringatan.
   final List<String> bahanMenipis;
 
+  /// Nama item yang stoknya GAGAL dikurangi (BUG-03) — tampilkan peringatan
+  /// agar dikoreksi manual.
+  final List<String> stokGagal;
+
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
+    final skema = tema.colorScheme;
 
     return AlertDialog(
       content: Column(
@@ -1580,10 +1582,10 @@ class _DialogSukses extends StatelessWidget {
             curve: Curves.elasticOut,
             builder: (context, nilai, _) => Transform.scale(
               scale: nilai,
-              child: const Icon(
+              child: Icon(
                 Icons.check_circle,
                 size: 72,
-                color: WarnaWarkop.hijauAman,
+                color: skema.secondary,
               ),
             ),
           ),
@@ -1608,18 +1610,18 @@ class _DialogSukses extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: WarnaWarkop.emas.withValues(alpha: 0.12),
+                color: skema.tertiary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: WarnaWarkop.emas.withValues(alpha: 0.5),
+                  color: skema.tertiary.withValues(alpha: 0.5),
                 ),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.warning_amber_outlined,
-                    color: WarnaWarkop.emas,
+                    color: skema.tertiary,
                     size: 20,
                   ),
                   const SizedBox(width: 8),
@@ -1627,7 +1629,41 @@ class _DialogSukses extends StatelessWidget {
                     child: Text(
                       'Stok menipis: ${bahanMenipis.join(', ')}',
                       style: tema.textTheme.bodySmall?.copyWith(
-                        color: WarnaWarkop.emas,
+                        color: skema.tertiary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (stokGagal.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: skema.error.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: skema.error.withValues(alpha: 0.5),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    color: skema.error,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Stok ${stokGagal.join(', ')} gagal diperbarui, '
+                      'koreksi manual.',
+                      style: tema.textTheme.bodySmall?.copyWith(
+                        color: skema.error,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1637,7 +1673,7 @@ class _DialogSukses extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 16),
-          TombolKaca(
+          TombolWarkop(
             label: 'Selesai',
             saatDitekan: () => Navigator.of(context).pop(),
           ),

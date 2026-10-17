@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/tema/token_warna.dart';
-import '../../bersama/widget/kartu_kaca.dart';
-import '../../bersama/widget/orb_latar.dart';
+import '../../bersama/util/waktu_wib.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/stok_opname.dart';
-import '../../bersama/util/waktu_wib.dart';
 
 /// Riwayat opname yang pernah dilakukan.
 final _penyediaRiwayatOpname = FutureProvider<List<StokOpname>>(
@@ -24,33 +24,76 @@ class LayarRiwayatOpname extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('RIWAYAT OPNAME')),
-      body: OrbLatar(
-        child: SafeArea(
-          child: riwayatAsync.when(
-            data: (daftar) => daftar.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.all(20),
-                    child: KartuKaca(
-                      tanpaBlur: true,
-                      child: Text(
-                        'Belum ada opname yang dicatat. '
-                        'Mulai dari layar Stok Opname.',
-                      ),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                    itemCount: daftar.length,
-                    itemBuilder: (ctx, i) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _BarisRiwayat(opname: daftar[i]),
-                    ),
+      body: SafeArea(
+        child: riwayatAsync.when(
+          data: (daftar) => daftar.isEmpty
+              ? const StatusKosong(
+                  judul: 'Belum ada riwayat opname',
+                  deskripsi: 'Mulai dari layar Stok Opname.',
+                  inisial: 'R',
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  itemCount: daftar.length,
+                  itemBuilder: (ctx, i) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _BarisRiwayat(opname: daftar[i]),
                   ),
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) =>
-                Center(child: Text('Gagal memuat riwayat: $e')),
+                ),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => StatusError(
+            saatCobaLagi: () => ref.invalidate(_penyediaRiwayatOpname),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Badge selisih opname: warna + ikon + teks.
+class _BadgeSelisih extends StatelessWidget {
+  const _BadgeSelisih({required this.selisih, required this.teks});
+
+  final double selisih;
+  final String teks;
+
+  @override
+  Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
+
+    final cocok = selisih == 0;
+    final warna = cocok
+        ? skema.secondary
+        : selisih < 0
+        ? skema.error
+        : skema.tertiary;
+    final ikon = cocok
+        ? Icons.check_rounded
+        : selisih < 0
+        ? Icons.remove_rounded
+        : Icons.add_rounded;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: warna.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: warna.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(ikon, size: 14, color: warna),
+          const SizedBox(width: 4),
+          Text(
+            teks,
+            style: gayaTeks.labelSmall?.copyWith(
+              color: warna,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -74,15 +117,9 @@ class _BarisRiwayat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selisih = opname.selisih;
-    final berubah = selisih != 0;
-    final warnaSelisih = !berubah
-        ? WarnaWarkop.hijauAman
-        : selisih < 0
-            ? WarnaWarkop.merahMenyala
-            : WarnaWarkop.kuningAntre;
+    final gayaTeks = Theme.of(context).textTheme;
 
-    return KartuKaca(
-      tanpaBlur: true,
+    return KartuWarkop(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -95,42 +132,26 @@ class _BarisRiwayat extends StatelessWidget {
                   children: [
                     Text(
                       opname.namaSnapshot,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w600),
+                      style: gayaTeks.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '${opname.tipeItem == 'menu' ? 'Menu' : 'Bahan'} · '
                       '${_tanggal(opname.dibuatPada)} · oleh ${opname.dibuatOleh}',
-                      style:
-                          Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
-                                    .withValues(alpha: 0.6),
-                              ),
+                      style: gayaTeks.bodySmall?.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
                     ),
                   ],
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: warnaSelisih.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(999),
-                  border:
-                      Border.all(color: warnaSelisih.withValues(alpha: 0.5)),
-                ),
-                child: Text(
-                  '${selisih >= 0 ? '+' : ''}${_tampil(selisih)}',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: warnaSelisih,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
+              _BadgeSelisih(
+                selisih: selisih,
+                teks: '${selisih >= 0 ? '+' : ''}${_tampil(selisih)}',
               ),
             ],
           ),
@@ -138,19 +159,18 @@ class _BarisRiwayat extends StatelessWidget {
           Text(
             'Sistem: ${_tampil(opname.stokSistem)} → '
             'Fisik: ${_tampil(opname.stokFisik)}',
-            style: Theme.of(context).textTheme.bodyMedium,
+            style: gayaTeks.bodyMedium,
           ),
           if (opname.catatan != null && opname.catatan!.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
               '“${opname.catatan}”',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontStyle: FontStyle.italic,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.7),
-                  ),
+              style: gayaTeks.bodySmall?.copyWith(
+                fontStyle: FontStyle.italic,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
             ),
           ],
         ],

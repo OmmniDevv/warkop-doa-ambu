@@ -5,8 +5,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/penyedia.dart';
 import '../../app/router.dart';
-import '../../app/tema/token_warna.dart';
-import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
 import '../../bersama/widget/tombol_tema.dart';
 import '../../data/model/akun.dart';
 import '../stok_kombo/mesin_sinkron.dart';
@@ -43,12 +44,12 @@ class LayarPilihKasir extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('PILIH KASIR'),
+        title: const Text('Pilih Kasir'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Kembali ke beranda',
@@ -67,13 +68,12 @@ class LayarPilihKasir extends ConsumerWidget {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
-              return _PesanTengah(
-                ikon: Icons.cloud_off_outlined,
-                judul: 'Gagal memuat daftar kasir.',
-                tombol: const Text('Kembali'),
-                // Layar ini dibuka via context.go (mengganti rute), jadi
-                // tidak ada tumpukan untuk di-pop — kembali eksplisit.
-                saatTombol: () => context.go(Rute.selamatDatang),
+              // Layar ini dibuka via context.go (mengganti rute), jadi
+              // tidak ada tumpukan untuk di-pop — kembali eksplisit.
+              return StatusError(
+                pesan: 'Gagal memuat daftar kasir.',
+                labelTombol: 'Kembali',
+                saatCobaLagi: () => context.go(Rute.selamatDatang),
               );
             }
 
@@ -81,12 +81,13 @@ class LayarPilihKasir extends ConsumerWidget {
             final daftar = hasil?.daftar ?? [];
             final info = hasil?.info;
             if (daftar.isEmpty) {
-              return _PesanTengah(
-                ikon: Icons.person_add_alt_outlined,
-                judul: 'Belum ada akun kasir.\n'
+              return StatusKosong(
+                judul: 'Belum ada akun kasir',
+                deskripsi:
                     'Minta owner membuatnya di menu Kelola Akun.',
-                tombol: const Text('Kembali'),
-                saatTombol: () {
+                inisial: '?',
+                labelAksi: 'Kembali',
+                saatAksi: () {
                   HapticFeedback.lightImpact();
                   context.go(Rute.selamatDatang);
                 },
@@ -100,10 +101,10 @@ class LayarPilihKasir extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                   child: Text(
                     'Siapa yang bertugas hari ini?',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(color: aksen),
+                    style: gayaTeks.titleMedium?.copyWith(
+                      color: skema.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 _StatusSinkronAkun(info: info),
@@ -117,7 +118,6 @@ class LayarPilihKasir extends ConsumerWidget {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _KartuKasir(
                           akun: akun,
-                          aksen: aksen,
                           saatTap: () {
                             HapticFeedback.lightImpact();
                             context.go('/kasir/pin/${akun.id}');
@@ -148,10 +148,8 @@ class _StatusSinkronAkun extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final teksRedup = gelap
-        ? WarnaWarkop.teksSekunderGelap
-        : WarnaWarkop.teksSekunderTerang;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
 
     late final String teks;
     late final IconData ikon;
@@ -159,17 +157,17 @@ class _StatusSinkronAkun extends StatelessWidget {
     if (info == null) {
       teks = 'Belum pernah ambil data kasir dari server';
       ikon = Icons.cloud_off_outlined;
-      warna = WarnaWarkop.merahMenyala;
+      warna = skema.error;
     } else if (info!.gagalBeruntun > 0) {
       teks = 'Gagal ambil data kasir ${info!.gagalBeruntun}x — '
           'dicoba lagi otomatis';
       ikon = Icons.sync_problem_outlined;
-      warna = WarnaWarkop.merahMenyala;
+      warna = skema.error;
     } else {
       teks = 'Terakhir ambil data: ${formatTanggalWaktu(info!.waktu)} '
           '• ${info!.jumlah} akun';
       ikon = Icons.cloud_done_outlined;
-      warna = WarnaWarkop.hijauAman;
+      warna = skema.secondary;
     }
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
@@ -180,10 +178,9 @@ class _StatusSinkronAkun extends StatelessWidget {
           Expanded(
             child: Text(
               teks,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: teksRedup),
+              style: gayaTeks.bodySmall?.copyWith(
+                color: skema.onSurfaceVariant,
+              ),
             ),
           ),
         ],
@@ -196,115 +193,54 @@ class _StatusSinkronAkun extends StatelessWidget {
 class _KartuKasir extends StatelessWidget {
   const _KartuKasir({
     required this.akun,
-    required this.aksen,
     required this.saatTap,
   });
 
   final Akun akun;
-  final Color aksen;
   final VoidCallback saatTap;
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
     final inisial =
         akun.nama.trim().isEmpty ? '?' : akun.nama.trim()[0].toUpperCase();
 
-    return KartuKaca(
-      tanpaBlur: true,
-      bayangan: false,
-      padding: const EdgeInsets.all(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: saatTap,
-        child: Row(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: aksen.withValues(alpha: 0.15),
-                border: Border.all(color: aksen, width: 1.5),
-              ),
-              child: Text(
-                inisial,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: aksen,
-                      fontWeight: FontWeight.bold,
-                    ),
+    return KartuWarkop(
+      saatDitekan: saatTap,
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: skema.primary.withValues(alpha: 0.15),
+              border: Border.all(color: skema.primary, width: 1.5),
+            ),
+            child: Text(
+              inisial,
+              style: gayaTeks.headlineSmall?.copyWith(
+                color: skema.primary,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                akun.nama,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              akun.nama,
+              style: gayaTeks.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: gelap
-                  ? WarnaWarkop.teksSekunderGelap
-                  : WarnaWarkop.teksSekunderTerang,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Pesan tengah layar dengan ikon + tombol aksi.
-class _PesanTengah extends StatelessWidget {
-  const _PesanTengah({
-    required this.ikon,
-    required this.judul,
-    required this.tombol,
-    required this.saatTombol,
-  });
-
-  final IconData ikon;
-  final String judul;
-  final Widget tombol;
-  final VoidCallback saatTombol;
-
-  @override
-  Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(ikon, size: 64, color: aksen),
-            const SizedBox(height: 16),
-            Text(
-              judul,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: saatTombol,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: aksen,
-                  side: BorderSide(color: aksen),
-                  minimumSize: const Size(0, 52),
-                ),
-                child: tombol,
-              ),
-            ),
-          ],
-        ),
+          ),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: skema.onSurfaceVariant,
+          ),
+        ],
       ),
     );
   }

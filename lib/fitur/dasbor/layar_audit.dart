@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/tema/token_warna.dart';
-import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/log_audit.dart';
 import 'util_tanggal.dart';
@@ -80,8 +81,14 @@ class _LayarAuditState extends ConsumerState<LayarAudit> {
                           )
                           .toList();
                   if (daftar.isEmpty) {
-                    return const Center(
-                      child: Text('Belum ada jejak audit.'),
+                    return StatusKosong(
+                      judul: _kataKunci.isEmpty
+                          ? 'Belum ada jejak audit'
+                          : 'Tidak ada hasil',
+                      deskripsi: _kataKunci.isEmpty
+                          ? 'Aktivitas kasir dan owner akan tercatat di sini.'
+                          : 'Coba kata kunci lain ya.',
+                      inisial: 'A',
                     );
                   }
                   return ListView.builder(
@@ -93,8 +100,10 @@ class _LayarAuditState extends ConsumerState<LayarAudit> {
                 },
                 loading: () =>
                     const Center(child: CircularProgressIndicator()),
-                error: (e, _) =>
-                    Center(child: Text('Gagal memuat audit: $e')),
+                error: (e, _) => StatusError(
+                  saatCobaLagi: () =>
+                      ref.invalidate(penyediaLogAudit),
+                ),
               ),
             ),
           ],
@@ -111,8 +120,7 @@ class _BarisAudit extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final aksen = Theme.of(context).colorScheme.primary;
     final referensi = log.idReferensi ?? '-';
     final refPendek =
         referensi.length > 8 ? '${referensi.substring(0, 8)}…' : referensi;
@@ -120,8 +128,7 @@ class _BarisAudit extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: KartuKaca(
-        tanpaBlur: true,
+      child: KartuWarkop(
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

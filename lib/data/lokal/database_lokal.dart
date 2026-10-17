@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -40,6 +41,14 @@ class DatabaseLokal {
     final dibuat = await _buka();
     _db = dibuat;
     return dibuat;
+  }
+
+  /// Hook khusus test: tutup koneksi singleton agar tiap test mulai bersih.
+  /// Tidak dipakai kode produksi.
+  @visibleForTesting
+  Future<void> tutupUntukTest() async {
+    await _db?.close();
+    _db = null;
   }
 
   Future<Database> _buka() async {
@@ -721,6 +730,24 @@ class DatabaseLokal {
     );
   }
 
+  /// Tambah stok menu sebanyak [jumlah] (atomik).
+  ///
+  /// Dipakai saat void: mengembalikan stok yang sudah dikurangi
+  /// saat pembayaran (BUG-02).
+  Future<void> tambahStok(String idMenu, int jumlah) async {
+    final db = await this.db;
+    await db.rawUpdate(
+      '''
+      UPDATE menu
+      SET stok = stok + ?,
+          status_sinkron = 'tertunda',
+          diperbarui_pada = ?
+      WHERE id = ?
+      ''',
+      [jumlah, _sekarangUtc(), idMenu],
+    );
+  }
+
   // ── Bahan (Fase stok redesign) ───────────────────────────────────
 
   /// Seluruh bahan aktif, urut nama.
@@ -962,10 +989,14 @@ class DatabaseLokal {
     return baris.map(PesananRincian.dariMap).toList();
   }
 
-  /// Hapus satu baris rincian pesanan (hapus permanen lokal).
+  /// Hapus satu baris rincian pesanan (soft-delete).
+  ///
+  /// Baris TIDAK dihapus permanen: ditandai apakah_dihapus=1 +
+  /// status_sinkron='tertunda' agar penghapusan ter-upload ke Supabase
+  /// (daftarTertunda sengaja tidak memfilter apakah_dihapus).
+  /// Query daftar (daftarRincianPesanan) sudah memfilter apakah_dihapus=0.
   Future<void> hapusRincian(String id) async {
-    final db = await this.db;
-    await db.delete('pesanan_rincian', where: 'id = ?', whereArgs: [id]);
+    await _hapusLunak('pesanan_rincian', id);
   }
 
   // ── Pembayaran gabungan ──────────────────────────────────────────
@@ -1031,6 +1062,33 @@ class DatabaseLokal {
       if (bahan != null && bahan.menipis) menipis.add(bahan);
     }
     return menipis;
+  }
+
+  /// Tambah stok bahan sesuai resep [idMenu] × [jumlahMenu] di-void.
+  ///
+  /// Kebalikan dari [kurangiStokBahanResep]: mengembalikan stok bahan
+  /// yang sudah dikurangi saat pembayaran (BUG-02).
+  Future<void> tambahStokBahanResep(
+    String idMenu,
+    int jumlahMenu,
+  ) async {
+    final resep = await daftarResepMenu(idMenu);
+    if (resep.isEmpty) return;
+    final db = await this.db;
+    final sekarang = _sekarangUtc();
+    for (final lengkap in resep) {
+      final baris = lengkap.resep;
+      await db.rawUpdate(
+        '''
+        UPDATE bahan
+        SET stok = stok + ?,
+            status_sinkron = 'tertunda',
+            diperbarui_pada = ?
+        WHERE id = ?
+        ''',
+        [baris.takaran * jumlahMenu, sekarang, baris.idBahan],
+      );
+    }
   }
 
   // ── Open bill ────────────────────────────────────────────────────

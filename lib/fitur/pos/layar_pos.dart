@@ -1,16 +1,22 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/router.dart';
-import '../../app/tema/token_warna.dart';
+import '../../app/tema/token_tipografi.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/hitung_diskon.dart';
 import '../../bersama/util/id_unik.dart';
-import '../../bersama/widget/kartu_kaca.dart';
-import '../../bersama/widget/orb_latar.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/chip_warkop.dart';
+import '../../bersama/widget/indikator_sinkron.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/lembar_warkop.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/kategori_menu.dart';
 import '../../data/model/menu.dart';
@@ -19,23 +25,52 @@ import '../../data/model/paket_kombo.dart';
 import '../../data/model/pesanan.dart';
 import '../../data/model/pesanan_rincian.dart';
 import '../kasir/penyedia_kasir.dart';
+import '../stok_kombo/penyedia_sinkron.dart';
 import 'model_keranjang.dart';
 import 'penyedia_keranjang.dart';
 
 /// Data master dimuat sekali dari SQLite; di-invalidate ulang setelah checkout.
-final _penyediaKategori = FutureProvider<List<KategoriMenu>>(
+final penyediaKategoriPos = FutureProvider<List<KategoriMenu>>(
   (ref) => DatabaseLokal.instance.daftarKategori(),
 );
-final _penyediaMenu = FutureProvider<List<Menu>>(
+final penyediaMenuPos = FutureProvider<List<Menu>>(
   (ref) => DatabaseLokal.instance.daftarMenu(),
 );
-final _penyediaPaket = FutureProvider<List<PaketKombo>>(
+final penyediaPaketPos = FutureProvider<List<PaketKombo>>(
   (ref) => DatabaseLokal.instance.daftarPaket(),
 );
-final _penyediaLabelTagihan = FutureProvider.family<String?, String>(
+final penyediaLabelTagihanPos = FutureProvider.family<String?, String>(
   (ref, idTagihan) async =>
       (await DatabaseLokal.instance.ambilOpenBill(idTagihan))?.label,
 );
+
+/// Jumlah baris menunggu sinkron (untuk angka pada indikator).
+/// Hanya baca-tampil; tidak mengubah alur sinkron.
+final penyediaAntreSinkronPos = FutureProvider<int>((ref) async {
+  final db = await DatabaseLokal.instance.db;
+  var total = 0;
+  const tabel = [
+    'pesanan',
+    'pesanan_rincian',
+    'pesanan_bayar',
+    'open_bill',
+    'shift_kasir',
+    'kasbon',
+    'kas_keluar',
+  ];
+  for (final nama in tabel) {
+    try {
+      final hasil = await db.rawQuery(
+        "SELECT COUNT(*) AS c FROM $nama WHERE status_sinkron = 'tertunda'",
+      );
+      final nilai = hasil.first['c'];
+      total += nilai is int ? nilai : int.tryParse('$nilai') ?? 0;
+    } catch (_) {
+      // Tabel tanpa kolom status_sinkron — lewati.
+    }
+  }
+  return total;
+});
 
 /// Nilai khusus untuk chip kategori "Kombo".
 const _idKategoriKombo = 'kombo';
@@ -50,9 +85,9 @@ class _DiskonItem {
 
 /// Layar kasir POS: pilih menu/paket, masukkan keranjang, buat pesanan.
 ///
-/// Tata letak: 50% atas = grid menu (foto + search + filter kategori),
-/// 50% bawah = panel keranjang yang mudah dijangkau jempol. Diskon per
-/// item diatur dari panel keranjang.
+/// Tata letak: header (sinkron + kasir) → pencarian → chip kategori →
+/// grid menu 2 kolom → bilah keranjang mengambang → lembar nota.
+/// Diskon per item diatur dari lembar nota.
 class LayarPos extends ConsumerStatefulWidget {
   const LayarPos({super.key, this.idTagihan});
 
@@ -69,10 +104,6 @@ class _LayarPosState extends ConsumerState<LayarPos> {
   String? _idKategoriTerpilih; // null = Semua
   String _kataKunci = '';
   bool _memproses = false;
-
-  /// Panel keranjang mulai dalam keadaan terlipat; kasir membuka
-  /// dengan panah atas, menutup dengan panah bawah.
-  bool _keranjangDibuka = false;
 
   @override
   void dispose() {
@@ -168,8 +199,8 @@ class _LayarPosState extends ConsumerState<LayarPos> {
         );
       }
       ref.read(penyediaKeranjang.notifier).kosongkan();
-      ref.invalidate(_penyediaMenu);
-      ref.invalidate(_penyediaPaket);
+      ref.invalidate(penyediaMenuPos);
+      ref.invalidate(penyediaPaketPos);
       return pesanan.id;
     } catch (_) {
       if (mounted) {
@@ -202,11 +233,10 @@ class _LayarPosState extends ConsumerState<LayarPos> {
       );
       return;
     }
-    final label = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const _LembarLabelTagihan(),
+    final label = await tampilkanLembarWarkop<String>(
+      context,
+      judul: 'Simpan Belum Bayar',
+      child: const _IsiLembarLabelTagihan(),
     );
     if (label == null || label.isEmpty || !mounted) return;
     try {
@@ -238,38 +268,77 @@ class _LayarPosState extends ConsumerState<LayarPos> {
     }
   }
 
+  /// Buka lembar nota: daftar item + total + tombol bayar.
+  Future<void> _bukaNota() async {
+    HapticFeedback.lightImpact();
+    await tampilkanLembarWarkop<void>(
+      context,
+      judul: 'Nota',
+      child: _LembarNota(
+        memproses: _memproses,
+        saatBuatPesanan: _buatPesanan,
+        saatSimpanBelumBayar:
+            widget.idTagihan == null ? _simpanBelumBayar : null,
+      ),
+    );
+  }
+
+  /// Sinkron manual saat indikator diketuk.
+  Future<void> _sinkronManual() async {
+    final notifikasi = ref.read(penyediaStatusSinkron.notifier);
+    notifikasi.ubah('Menyinkronkan...');
+    try {
+      final hasil = await ref.read(penyediaMesinSinkron).sinkronkan();
+      if (hasil.gagal == 0) {
+        notifikasi.ubah('Tersinkron');
+      } else if (hasil.berhasil == 0) {
+        notifikasi.ubah('Offline');
+      } else {
+        notifikasi.ubah('Sebagian gagal');
+      }
+    } catch (_) {
+      notifikasi.ubah('Offline');
+    }
+    ref.invalidate(penyediaAntreSinkronPos);
+  }
+
+  void _muatUlang() {
+    ref.invalidate(penyediaKategoriPos);
+    ref.invalidate(penyediaMenuPos);
+    ref.invalidate(penyediaPaketPos);
+    ref.invalidate(penyediaAntreSinkronPos);
+  }
+
   @override
   Widget build(BuildContext context) {
     final kasir = ref.watch(sesiKasirProvider);
     if (kasir == null) {
       return Scaffold(
-        body: OrbLatar(
-          child: SafeArea(
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Masuk sebagai kasir dulu',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  TombolKaca(
-                    label: 'Ke Layar Kasir',
-                    lebarPenuh: false,
-                    saatDitekan: () => context.go('/kasir'),
-                  ),
-                ],
-              ),
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Masuk sebagai kasir dulu',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                TombolWarkop(
+                  label: 'Ke Layar Kasir',
+                  lebarPenuh: false,
+                  saatDitekan: () => context.go('/kasir'),
+                ),
+              ],
             ),
           ),
         ),
       );
     }
 
-    final kategoriAsync = ref.watch(_penyediaKategori);
-    final menuAsync = ref.watch(_penyediaMenu);
-    final paketAsync = ref.watch(_penyediaPaket);
+    final kategoriAsync = ref.watch(penyediaKategoriPos);
+    final menuAsync = ref.watch(penyediaMenuPos);
+    final paketAsync = ref.watch(penyediaPaketPos);
 
     final memuat = kategoriAsync.isLoading ||
         menuAsync.isLoading ||
@@ -278,138 +347,50 @@ class _LayarPosState extends ConsumerState<LayarPos> {
         kategoriAsync.error ?? menuAsync.error ?? paketAsync.error;
 
     return Scaffold(
-      // Tanpa AppBar — header menyatu dengan latar orb.
-      body: OrbLatar(
-        child: SafeArea(
-          child: memuat
-              ? const Center(child: CircularProgressIndicator())
-              : galat != null
-                  ? _GalatMuat(
-                      saatMuatUlang: () {
-                        ref.invalidate(_penyediaKategori);
-                        ref.invalidate(_penyediaMenu);
-                        ref.invalidate(_penyediaPaket);
-                      },
-                    )
-                  : LayoutBuilder(
-                      builder: (context, kendala) {
-                        // 75% dari ruang kolom yang tersedia (bukan layar
-                        // penuh) agar panel tidak overflow ke belakang
-                        // navbar dan tombol selalu terlihat.
-                        final tinggiPanelTerbuka = kendala.maxHeight * 0.75;
-                        return Column(
-                          children: [
-                            _bangunHeader(kasir.nama),
-                            if (widget.idTagihan != null)
-                              _ChipTagihan(idTagihan: widget.idTagihan!),
-                            _bangunPencarian(),
-                            _bangunKategori(
-                              daftarKategori: kategoriAsync.value ?? const [],
-                            ),
-                            // Grid menu mengisi ruang sisa; panel keranjang
-                            // bisa dilipat/dibuka (75% ruang saat dibuka).
-                            Expanded(
-                              child: _modeKombo
-                                  ? _GridPaket(
-                                      daftarPaket: _paketTampil(
-                                        paketAsync.value ?? const [],
-                                      ),
-                                      saatTap: _tambahPaket,
-                                    )
-                                  : _GridMenu(
-                                      daftarMenu: _menuTampil(
-                                        menuAsync.value ?? const [],
-                                      ),
-                                      saatTap: _tambahMenu,
-                                    ),
-                            ),
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 280),
-                              curve: Curves.easeInOut,
-                              height: _keranjangDibuka
-                                  ? tinggiPanelTerbuka
-                                  : 76,
-                              child: _PanelKeranjang(
-                                memproses: _memproses,
-                                dibuka: _keranjangDibuka,
-                                saatToggle: () => setState(
-                                  () => _keranjangDibuka = !_keranjangDibuka,
+      body: SafeArea(
+        // Cek galat DULU: Riverpod menandai provider yang gagal saat
+        // loading awal sebagai isLoading + hasError (bukan murni error),
+        // sehingga tanpa urutan ini user terjebak di spinner selamanya.
+        child: galat != null
+            ? StatusError(
+                pesan: 'Gagal memuat data menu. Coba lagi ya.',
+                saatCobaLagi: _muatUlang,
+              )
+            : memuat
+                ? const Center(child: CircularProgressIndicator())
+                : Column(
+                    children: [
+                      _HeaderKasir(
+                        namaKasir: kasir.nama,
+                        saatKeluar: _keluar,
+                        saatSinkron: _sinkronManual,
+                      ),
+                      if (widget.idTagihan != null)
+                        _ChipTagihan(idTagihan: widget.idTagihan!),
+                      _bangunPencarian(),
+                      _bangunKategori(
+                        daftarKategori: kategoriAsync.value ?? const [],
+                      ),
+                      // Grid menu mengisi ruang sisa; bilah keranjang
+                      // mengambang di bawah saat ada isi.
+                      Expanded(
+                        child: _modeKombo
+                            ? _GridPaket(
+                                daftarPaket: _paketTampil(
+                                  paketAsync.value ?? const [],
                                 ),
-                                saatBuatPesanan: _buatPesanan,
-                                saatSimpanBelumBayar: widget.idTagihan == null
-                                    ? _simpanBelumBayar
-                                    : null,
+                                saatTap: _tambahPaket,
+                              )
+                            : _GridMenu(
+                                daftarMenu: _menuTampil(
+                                  menuAsync.value ?? const [],
+                                ),
+                                saatTap: _tambahMenu,
                               ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-        ),
-      ),
-    );
-  }
-
-  /// Header: judul + nama kasir + tombol keluar.
-  Widget _bangunHeader(String namaKasir) {
-    final teks = Theme.of(context).textTheme;
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final teksRedup =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Kasir POS',
-                  style: teks.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
+                      ),
+                      _BilahKeranjang(saatBuka: _bukaNota),
+                    ],
                   ),
-                ),
-                Text(
-                  namaKasir,
-                  style: teks.bodySmall?.copyWith(color: teksRedup),
-                ),
-              ],
-            ),
-          ),
-          Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () {
-                HapticFeedback.lightImpact();
-                _keluar();
-              },
-              child: Tooltip(
-                message: 'Keluar dari sesi kasir',
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: WarnaWarkop.merahMenyala
-                        .withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: WarnaWarkop.merahMenyala
-                          .withValues(alpha: 0.4),
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.logout_outlined,
-                    color: WarnaWarkop.merahMenyala,
-                    size: 20,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -424,9 +405,6 @@ class _LayarPosState extends ConsumerState<LayarPos> {
         decoration: const InputDecoration(
           hintText: 'Cari menu atau paket...',
           prefixIcon: Icon(Icons.search_outlined),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(16)),
-          ),
           isDense: true,
         ),
         onChanged: (nilai) => setState(() => _kataKunci = nilai),
@@ -434,8 +412,7 @@ class _LayarPosState extends ConsumerState<LayarPos> {
     );
   }
 
-  /// Deretan chip kategori horizontal (ListView.builder — daftar pendek
-  /// tapi tetap lazy agar lolos audit performa).
+  /// Deretan chip kategori horizontal.
   Widget _bangunKategori({required List<KategoriMenu> daftarKategori}) {
     final kategoriAktif = daftarKategori
         .where((kategori) => kategori.aktif)
@@ -450,18 +427,21 @@ class _LayarPosState extends ConsumerState<LayarPos> {
     ];
 
     return SizedBox(
-      height: 48,
+      height: 56,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         itemCount: chip.length,
         itemBuilder: (context, indeks) {
           final item = chip[indeks];
-          return _ChipKategori(
-            label: item.label,
-            terpilih: _idKategoriTerpilih == item.idKategori,
-            saatDipilih: () =>
-                setState(() => _idKategoriTerpilih = item.idKategori),
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChipWarkop(
+              label: item.label,
+              terpilih: _idKategoriTerpilih == item.idKategori,
+              saatDitekan: () =>
+                  setState(() => _idKategoriTerpilih = item.idKategori),
+            ),
           );
         },
       ),
@@ -492,6 +472,103 @@ class _LayarPosState extends ConsumerState<LayarPos> {
   }
 }
 
+/// Header: judul + nama kasir + indikator sinkron + tombol keluar.
+class _HeaderKasir extends ConsumerWidget {
+  const _HeaderKasir({
+    required this.namaKasir,
+    required this.saatKeluar,
+    required this.saatSinkron,
+  });
+
+  final String namaKasir;
+  final VoidCallback saatKeluar;
+  final VoidCallback saatSinkron;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final teks = Theme.of(context).textTheme;
+    final skema = Theme.of(context).colorScheme;
+    final statusTeks = ref.watch(penyediaStatusSinkron);
+    final antreAsync = ref.watch(penyediaAntreSinkronPos);
+
+    final StatusSinkron status;
+    switch (statusTeks) {
+      case 'Menyinkronkan...':
+        status = StatusSinkron.antre;
+      case 'Sebagian gagal':
+      case 'Offline':
+        status = StatusSinkron.gagal;
+      default:
+        status = StatusSinkron.aman;
+    }
+    final jumlahAntre = antreAsync.value ?? 0;
+    // Bila antre tapi jumlah belum termuat, anggap aman agar tidak
+    // menampilkan "Antre 0" yang membingungkan.
+    final statusTampil =
+        (status == StatusSinkron.antre && antreAsync.isLoading)
+            ? StatusSinkron.aman
+            : status;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Kasir POS',
+                  style: teks.titleLarge,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Keluar dari sesi kasir',
+                icon: const Icon(Icons.logout_outlined, size: 20),
+                color: skema.error,
+                style: IconButton.styleFrom(
+                  backgroundColor: skema.error.withValues(alpha: 0.12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: skema.error.withValues(alpha: 0.4),
+                    ),
+                  ),
+                ),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  saatKeluar();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  namaKasir,
+                  style: teks.bodySmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              IndikatorSinkron(
+                status: statusTampil,
+                jumlahAntre: jumlahAntre,
+                saatDitekan: saatSinkron,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Chip "Tagihan: <label>" saat layar dibuka dari open bill.
 class _ChipTagihan extends ConsumerWidget {
   const _ChipTagihan({required this.idTagihan});
@@ -500,7 +577,7 @@ class _ChipTagihan extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final labelAsync = ref.watch(_penyediaLabelTagihan(idTagihan));
+    final labelAsync = ref.watch(penyediaLabelTagihanPos(idTagihan));
     final skema = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
@@ -515,65 +592,14 @@ class _ChipTagihan extends ConsumerWidget {
               error: (_, __) => 'Tagihan',
             ),
           ),
-          backgroundColor: skema.secondaryContainer,
+          backgroundColor: skema.primaryContainer,
         ),
       ),
     );
   }
 }
 
-class _ChipKategori extends StatelessWidget {
-  const _ChipKategori({
-    required this.label,
-    required this.terpilih,
-    required this.saatDipilih,
-  });
-
-  final String label;
-  final bool terpilih;
-  final VoidCallback saatDipilih;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(
-        label: Text(label),
-        selected: terpilih,
-        onSelected: (_) => saatDipilih(),
-      ),
-    );
-  }
-}
-
-class _GalatMuat extends StatelessWidget {
-  const _GalatMuat({required this.saatMuatUlang});
-
-  final VoidCallback saatMuatUlang;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'Gagal memuat data menu.',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 16),
-          TombolKaca(
-            label: 'Muat Ulang',
-            lebarPenuh: false,
-            saatDitekan: saatMuatUlang,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Grid 2 kolom kartu menu — TANPA BackdropFilter (hemat GPU).
+/// Grid 2 kolom kartu menu — permukaan solid, tanpa blur (hemat GPU).
 class _GridMenu extends StatelessWidget {
   const _GridMenu({required this.daftarMenu, required this.saatTap});
 
@@ -583,7 +609,12 @@ class _GridMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (daftarMenu.isEmpty) {
-      return const Center(child: Text('Belum ada menu di kategori ini.'));
+      return const StatusKosong(
+        judul: 'Belum ada menu',
+        deskripsi:
+            'Tidak ada menu di kategori ini. Coba kata kunci lain atau tambah menu dari dasbor owner.',
+        inisial: 'M',
+      );
     }
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -602,7 +633,7 @@ class _GridMenu extends StatelessWidget {
   }
 }
 
-/// Grid 2 kolom kartu paket kombo — TANPA BackdropFilter.
+/// Grid 2 kolom kartu paket kombo.
 class _GridPaket extends StatelessWidget {
   const _GridPaket({required this.daftarPaket, required this.saatTap});
 
@@ -612,7 +643,12 @@ class _GridPaket extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (daftarPaket.isEmpty) {
-      return const Center(child: Text('Belum ada paket kombo.'));
+      return const StatusKosong(
+        judul: 'Belum ada paket kombo',
+        deskripsi:
+            'Paket kombo promo bisa dibuat dari dasbor owner, lalu muncul di sini.',
+        inisial: 'K',
+      );
     }
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -631,7 +667,7 @@ class _GridPaket extends StatelessWidget {
   }
 }
 
-/// Kartu menu kaca tanpa blur: foto di atas, nama + harga di bawah.
+/// Kartu menu: foto di atas, nama + harga di bawah.
 /// Efek tekan memakai AnimatedScale (transform = aman GPU).
 class _KartuMenu extends StatefulWidget {
   const _KartuMenu({required this.menu, required this.saatTap});
@@ -646,19 +682,20 @@ class _KartuMenu extends StatefulWidget {
 class _KartuMenuState extends State<_KartuMenu> {
   double _skala = 1.0;
 
-  bool get _nonaktif => !widget.menu.tersedia || widget.menu.stok <= 0;
+  bool get _habis => !widget.menu.tersedia || widget.menu.stok <= 0;
+  bool get _menipis =>
+      !_habis &&
+      widget.menu.stokMinimum > 0 &&
+      widget.menu.stok <= widget.menu.stokMinimum;
 
   @override
   Widget build(BuildContext context) {
-    final skema = Theme.of(context).colorScheme;
     final teks = Theme.of(context).textTheme;
 
-    final badge = _nonaktif
-        ? const _LencanaStok(label: 'Habis', warna: WarnaWarkop.merahMenyala)
-        : (widget.menu.stok <= widget.menu.stokMinimum &&
-                widget.menu.stokMinimum > 0)
-            ? const _LencanaStok(
-                label: 'Menipis', warna: WarnaWarkop.kuningAntre)
+    final badge = _habis
+        ? const _LencanaStok.menipis(label: 'Habis', habis: true)
+        : _menipis
+            ? const _LencanaStok.menipis(label: 'Menipis')
             : null;
 
     return AnimatedScale(
@@ -666,22 +703,23 @@ class _KartuMenuState extends State<_KartuMenu> {
       duration: const Duration(milliseconds: 150),
       curve: Curves.easeInOut,
       child: Opacity(
-        opacity: _nonaktif ? 0.45 : 1.0,
+        opacity: _habis ? 0.45 : 1.0,
         child: GestureDetector(
-          onTapDown: _nonaktif ? null : (_) => setState(() => _skala = 0.96),
-          onTapUp: _nonaktif ? null : (_) => setState(() => _skala = 1.0),
+          onTapDown: _habis ? null : (_) => setState(() => _skala = 0.96),
+          onTapUp: _habis ? null : (_) => setState(() => _skala = 1.0),
           onTapCancel: () => setState(() => _skala = 1.0),
-          onTap: _nonaktif ? null : widget.saatTap,
-          child: KartuKaca(
-            // WAJIB tanpaBlur di grid — dilarang BackdropFilter per kartu.
-            tanpaBlur: true,
-            tingkat: TingkatKaca.ringan,
-            radius: 16,
+          onTap: _habis
+              ? null
+              : () {
+                  HapticFeedback.lightImpact();
+                  widget.saatTap();
+                },
+          child: KartuWarkop(
             padding: const EdgeInsets.all(10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Foto menu (atau placeholder gradien violet).
+                // Foto menu (atau placeholder tipografis).
                 Expanded(
                   child: Stack(
                     children: [
@@ -690,7 +728,7 @@ class _KartuMenuState extends State<_KartuMenu> {
                           borderRadius: BorderRadius.circular(10),
                           child: _FotoMenu(
                             fotoUrl: widget.menu.fotoUrl,
-                            label: widget.menu.nama,
+                            nama: widget.menu.nama,
                           ),
                         ),
                       ),
@@ -708,14 +746,14 @@ class _KartuMenuState extends State<_KartuMenu> {
                   widget.menu.nama,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: teks.titleSmall,
+                  style: teks.labelLarge,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   formatRupiah(widget.menu.hargaSatuan),
-                  style: teks.titleMedium?.copyWith(
-                    color: skema.primary,
-                    fontWeight: FontWeight.bold,
+                  style: TipografiWarkop.nominal.copyWith(
+                    fontSize: 16,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ],
@@ -727,73 +765,94 @@ class _KartuMenuState extends State<_KartuMenu> {
   }
 }
 
-/// Foto menu: Image.network bila ada URL, placeholder gradien violet bila
-/// tidak ada / gagal dimuat (misalnya saat offline).
+/// Foto menu: berkas lokal bila path lokal, jaringan bila URL,
+/// placeholder tipografis bila tidak ada / gagal dimuat (offline).
 class _FotoMenu extends StatelessWidget {
-  const _FotoMenu({required this.fotoUrl, required this.label});
+  const _FotoMenu({required this.fotoUrl, required this.nama});
 
   final String? fotoUrl;
-  final String label;
+  final String nama;
 
   @override
   Widget build(BuildContext context) {
     final foto = fotoUrl;
-    if (foto == null || foto.isEmpty) return const _FotoKosong();
+    if (foto == null || foto.isEmpty) return _PlaceholderFoto(nama: nama);
 
-    return Image.network(
-      foto,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      // Saat memuat: placeholder; gagal: placeholder.
-      loadingBuilder: (context, anak, kemajuan) {
-        if (kemajuan == null) return anak;
-        return const _FotoKosong(memuat: true);
-      },
-      errorBuilder: (context, galat, tumpukan) => const _FotoKosong(),
-      semanticLabel: label,
-    );
+    final Widget gambar = foto.startsWith('http')
+        ? Image.network(
+            foto,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            loadingBuilder: (context, anak, kemajuan) {
+              if (kemajuan == null) return anak;
+              return _PlaceholderFoto(nama: nama, memuat: true);
+            },
+            errorBuilder: (context, galat, tumpukan) =>
+                _PlaceholderFoto(nama: nama),
+            semanticLabel: nama,
+          )
+        : Image.file(
+            File(foto),
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            errorBuilder: (context, galat, tumpukan) =>
+                _PlaceholderFoto(nama: nama),
+            semanticLabel: nama,
+          );
+    return gambar;
   }
 }
 
-/// Placeholder gradien violet untuk menu tanpa foto.
-class _FotoKosong extends StatelessWidget {
-  const _FotoKosong({this.memuat = false});
+/// Placeholder tipografis: inisial menu + warna kategori yang konsisten.
+class _PlaceholderFoto extends StatelessWidget {
+  const _PlaceholderFoto({required this.nama, this.memuat = false});
 
+  final String nama;
   final bool memuat;
+
+  /// Warna kategori deterministik dari nama menu (stabil antar render).
+  Color _warnaKategori(ColorScheme skema) {
+    final palet = [
+      skema.primary,
+      skema.secondary,
+      skema.tertiary,
+    ];
+    var kode = 0;
+    for (final unit in nama.codeUnits) {
+      kode = (kode * 31 + unit) % 997;
+    }
+    return palet[kode % palet.length];
+  }
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final skema = Theme.of(context).colorScheme;
+    final warna = _warnaKategori(skema);
+    final inisial =
+        nama.trim().isEmpty ? '•' : nama.trim()[0].toUpperCase();
 
     return Container(
       width: double.infinity,
       height: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            aksen.withValues(alpha: 0.55),
-            WarnaWarkop.aksenGelapHover.withValues(alpha: 0.55),
-          ],
-        ),
-      ),
+      color: warna.withValues(alpha: 0.18),
       child: Center(
         child: memuat
-            ? const SizedBox(
+            ? SizedBox(
                 width: 24,
                 height: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  color: warna,
                 ),
               )
-            : const Icon(
-                Icons.fastfood_outlined,
-                color: Colors.white,
-                size: 36,
+            : Text(
+                inisial,
+                style: Theme.of(context)
+                    .textTheme
+                    .displayLarge
+                    ?.copyWith(color: warna),
               ),
       ),
     );
@@ -815,8 +874,8 @@ class _KartuPaketState extends State<_KartuPaket> {
 
   @override
   Widget build(BuildContext context) {
-    final skema = Theme.of(context).colorScheme;
     final teks = Theme.of(context).textTheme;
+    final skema = Theme.of(context).colorScheme;
 
     return AnimatedScale(
       scale: _skala,
@@ -826,32 +885,31 @@ class _KartuPaketState extends State<_KartuPaket> {
         onTapDown: (_) => setState(() => _skala = 0.96),
         onTapUp: (_) => setState(() => _skala = 1.0),
         onTapCancel: () => setState(() => _skala = 1.0),
-        onTap: widget.saatTap,
-        child: KartuKaca(
-          tanpaBlur: true,
-          tingkat: TingkatKaca.ringan,
-          radius: 16,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          widget.saatTap();
+        },
+        child: KartuWarkop(
           padding: const EdgeInsets.all(12),
-          border: WarnaWarkop.emas.withValues(alpha: 0.5),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _LencanaStok(label: 'Paket', warna: WarnaWarkop.emas),
+              const _LencanaStok.paket(),
               const SizedBox(height: 8),
               Expanded(
                 child: Text(
                   widget.paket.nama,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
-                  style: teks.titleSmall,
+                  style: teks.labelLarge,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 formatRupiah(widget.paket.hargaPaket),
-                style: teks.titleMedium?.copyWith(
+                style: TipografiWarkop.nominal.copyWith(
+                  fontSize: 16,
                   color: skema.primary,
-                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
@@ -862,51 +920,169 @@ class _KartuPaketState extends State<_KartuPaket> {
   }
 }
 
+/// Lencana status: selalu tiga sinyal — warna + ikon + teks.
 class _LencanaStok extends StatelessWidget {
-  const _LencanaStok({required this.label, required this.warna});
+  const _LencanaStok.menipis({required this.label, this.habis = false})
+      : _paket = false;
+  const _LencanaStok.paket()
+      : label = 'Paket',
+        habis = false,
+        _paket = true;
 
   final String label;
-  final Color warna;
+  final bool habis;
+  final bool _paket;
 
   @override
   Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
+    final Color latar;
+    final Color isi;
+    final IconData ikon;
+    if (_paket) {
+      latar = skema.primary.withValues(alpha: 0.15);
+      isi = skema.primary;
+      ikon = Icons.local_offer_outlined;
+    } else if (habis) {
+      latar = skema.error.withValues(alpha: 0.15);
+      isi = skema.error;
+      ikon = Icons.remove_shopping_cart_outlined;
+    } else {
+      latar = skema.tertiaryContainer;
+      isi = skema.onTertiaryContainer;
+      ikon = Icons.warning_amber_outlined;
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: warna.withValues(alpha: 0.15),
+        color: latar,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: warna,
-              fontWeight: FontWeight.bold,
-            ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(ikon, size: 14, color: isi),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: isi,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Panel keranjang di 45% bawah layar: daftar baris + diskon per item +
-/// total + tombol "Buat Pesanan" yang mudah dijangkau jempol.
-class _PanelKeranjang extends ConsumerWidget {
-  const _PanelKeranjang({
+/// Bilah keranjang mengambang: total menonjol + jumlah item.
+/// Muncul hanya saat keranjang ada isi; ketuk untuk buka lembar nota.
+class _BilahKeranjang extends ConsumerWidget {
+  const _BilahKeranjang({required this.saatBuka});
+
+  final VoidCallback saatBuka;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final baris = ref.watch(penyediaKeranjang);
+    if (baris.isEmpty) return const SizedBox.shrink();
+
+    final skema = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: GestureDetector(
+        onTap: saatBuka,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
+          decoration: BoxDecoration(
+            color: skema.primary,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: skema.shadow.withValues(alpha: 0.2),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Keranjang • ${baris.totalItem} item',
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelLarge
+                          ?.copyWith(color: skema.onPrimary),
+                    ),
+                    Text(
+                      formatRupiah(baris.totalHarga),
+                      style: TipografiWarkop.nominal.copyWith(
+                        fontSize: 20,
+                        color: skema.onPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: skema.onPrimary.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Nota',
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelLarge
+                          ?.copyWith(
+                            color: skema.onPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.keyboard_arrow_up,
+                      color: skema.onPrimary,
+                      size: 20,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Isi lembar nota: daftar item + total + tombol bayar.
+/// Dibuka via [tampilkanLembarWarkop] (blur latar, max 85% layar).
+class _LembarNota extends ConsumerWidget {
+  const _LembarNota({
     required this.memproses,
-    required this.dibuka,
-    required this.saatToggle,
     required this.saatBuatPesanan,
     this.saatSimpanBelumBayar,
   });
 
   final bool memproses;
-
-  /// True = panel dibuka (75% layar), false = terlipat (bilah ringkas).
-  final bool dibuka;
-  final VoidCallback saatToggle;
   final VoidCallback saatBuatPesanan;
-
-  /// Jika diisi, tampil tombol "Simpan Belum Bayar" di bawah "Buat Pesanan".
-  /// Dikosongkan saat POS dibuka dari tagihan (pesanan sudah nempel tagihan).
   final VoidCallback? saatSimpanBelumBayar;
 
   @override
@@ -918,123 +1094,31 @@ class _PanelKeranjang extends ConsumerWidget {
     final totalHemat =
         baris.fold(0, (total, item) => total + item.potonganDiskon);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: skema.surface,
-        border: Border(top: BorderSide(color: skema.outlineVariant)),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: dibuka
-          ? _bangunIsiPenuh(context, ref, baris, teks, skema, totalHemat)
-          : _bangunBilahLipatan(context, baris, teks, skema),
-    );
-  }
-
-  /// Bilah ringkas saat panel terlipat: info keranjang + panah atas.
-  Widget _bangunBilahLipatan(
-    BuildContext context,
-    List<BarisKeranjang> baris,
-    TextTheme teks,
-    ColorScheme skema,
-  ) {
-    return InkWell(
-      onTap: saatToggle,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
-        child: Row(
-          children: [
-            Icon(
-              Icons.keyboard_arrow_up,
-              color: skema.primary,
-              size: 28,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    baris.isEmpty
-                        ? 'Keranjang kosong'
-                        : 'Keranjang • ${baris.totalItem} item',
-                    style: teks.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    formatRupiah(baris.totalHarga),
-                    style: teks.bodyMedium?.copyWith(
-                      color: skema.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (baris.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: skema.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '${baris.totalItem}',
-                  style: teks.labelMedium?.copyWith(
-                    color: skema.onPrimaryContainer,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Isi penuh saat panel dibuka: daftar item + total + tombol aksi.
-  Widget _bangunIsiPenuh(
-    BuildContext context,
-    WidgetRef ref,
-    List<BarisKeranjang> baris,
-    TextTheme teks,
-    ColorScheme skema,
-    int totalHemat,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
-          child: Row(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              Text(
-                'Keranjang',
-                style: teks.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              Text('Nota', style: teks.titleLarge),
               const SizedBox(width: 8),
               if (baris.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
+                    horizontal: 10,
+                    vertical: 4,
                   ),
                   decoration: BoxDecoration(
                     color: skema.primaryContainer,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    '${baris.totalItem}',
-                    style: teks.labelSmall?.copyWith(
+                    '${baris.totalItem} item',
+                    style: teks.labelLarge?.copyWith(
                       color: skema.onPrimaryContainer,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -1042,108 +1126,89 @@ class _PanelKeranjang extends ConsumerWidget {
               if (totalHemat > 0)
                 Text(
                   'Hemat ${formatRupiah(totalHemat)}',
-                  style: teks.bodySmall?.copyWith(
-                    color: WarnaWarkop.hijauAman,
-                    fontWeight: FontWeight.w600,
+                  style: teks.labelLarge?.copyWith(
+                    color: skema.secondary,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              IconButton(
-                onPressed: saatToggle,
-                icon: const Icon(Icons.keyboard_arrow_down),
-                tooltip: 'Lipatkan keranjang',
-              ),
             ],
           ),
-        ),
-        Expanded(
-          child: baris.isEmpty
-              ? Center(
-                  child: Text(
-                    'Ketuk menu di atas untuk menambah ke keranjang.',
-                    textAlign: TextAlign.center,
-                    style: teks.bodyMedium?.copyWith(
-                      color: skema.onSurfaceVariant,
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                  itemCount: baris.length,
-                  itemBuilder: (context, indeks) {
-                    final item = baris[indeks];
-                    return _BarisKeranjang(
-                      key: ValueKey(item.idBaris),
-                      baris: item,
-                    );
-                  },
+          const SizedBox(height: 12),
+          if (baris.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Text(
+                'Ketuk menu untuk menambah ke nota.',
+                textAlign: TextAlign.center,
+                style: teks.bodyLarge?.copyWith(
+                  color: skema.onSurfaceVariant,
                 ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+              ),
+            )
+          else
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final item in baris)
+                  _BarisNota(
+                    key: ValueKey(item.idBaris),
+                    baris: item,
+                  ),
+              ],
+            ),
+          const SizedBox(height: 12),
+          Row(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Total', style: teks.titleMedium),
-                  Text(
-                    formatRupiah(baris.totalHarga),
-                    style: teks.titleLarge?.copyWith(
-                      color: skema.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
+              Text('Total', style: teks.titleLarge),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  formatRupiah(baris.totalHarga),
+                  style: TipografiWarkop.nominal.copyWith(
+                    fontSize: 32,
+                    color: skema.primary,
                   ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: TombolKaca(
-                      label: 'Bayar',
-                      ikon: Icons.receipt_long_outlined,
-                      lebarPenuh: false,
-                      memuat: memproses,
-                      aktif: baris.isNotEmpty,
-                      saatDitekan: saatBuatPesanan,
-                    ),
-                  ),
-                  if (saatSimpanBelumBayar != null) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TombolKaca(
-                        label: 'Pesan',
-                        ikon: Icons.bookmark_add_outlined,
-                        lebarPenuh: false,
-                        memuat: memproses,
-                        aktif: baris.isNotEmpty,
-                        saatDitekan: saatSimpanBelumBayar,
-                      ),
-                    ),
-                  ],
-                ],
+                  textAlign: TextAlign.right,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
-        ),
-      ],
+          const SizedBox(height: 16),
+          TombolWarkop(
+            label: 'Bayar',
+            ikon: Icons.receipt_long_outlined,
+            memuat: memproses,
+            saatDitekan: baris.isEmpty ? null : saatBuatPesanan,
+          ),
+          if (saatSimpanBelumBayar != null) ...[
+            const SizedBox(height: 12),
+            TombolWarkop(
+              label: 'Simpan Belum Bayar',
+              ikon: Icons.bookmark_add_outlined,
+              varian: VarianTombol.teks,
+              memuat: memproses,
+              saatDitekan: baris.isEmpty ? null : saatSimpanBelumBayar,
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
 
-/// Satu baris keranjang: nama, stepper jumlah, tombol diskon, hapus,
-/// dan kolom catatan.
-class _BarisKeranjang extends ConsumerStatefulWidget {
-  const _BarisKeranjang({super.key, required this.baris});
+/// Satu baris nota: nama, stepper jumlah, diskon, hapus, catatan.
+class _BarisNota extends ConsumerStatefulWidget {
+  const _BarisNota({super.key, required this.baris});
 
   final BarisKeranjang baris;
 
   @override
-  ConsumerState<_BarisKeranjang> createState() => _BarisKeranjangState();
+  ConsumerState<_BarisNota> createState() => _BarisNotaState();
 }
 
-class _BarisKeranjangState extends ConsumerState<_BarisKeranjang> {
+class _BarisNotaState extends ConsumerState<_BarisNota> {
   late final TextEditingController _catatanController;
 
   @override
@@ -1161,16 +1226,10 @@ class _BarisKeranjangState extends ConsumerState<_BarisKeranjang> {
 
   /// Buka lembar atur diskon untuk baris ini.
   Future<void> _aturDiskon() async {
-    final hasil = await showModalBottomSheet<_DiskonItem>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
-        ),
-        child: _LembarDiskonItem(baris: widget.baris),
-      ),
+    final hasil = await tampilkanLembarWarkop<_DiskonItem>(
+      context,
+      judul: 'Diskon — ${widget.baris.nama}',
+      child: _IsiLembarDiskon(baris: widget.baris),
     );
     if (hasil == null || !mounted) return;
     ref.read(penyediaKeranjang.notifier).ubahDiskonItem(
@@ -1190,34 +1249,28 @@ class _BarisKeranjangState extends ConsumerState<_BarisKeranjang> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: KartuKaca(
-        tanpaBlur: true,
-        tingkat: TingkatKaca.ringan,
-        radius: 14,
+      child: KartuWarkop(
         padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Baris atas: nama + stepper jumlah (ruang lega untuk nama).
             Row(
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(baris.nama, style: teks.bodyMedium),
+                      Text(baris.nama, style: teks.labelLarge),
                       Text(
                         '${formatRupiah(baris.hargaSatuan)} × ${baris.jumlah}',
-                        style: teks.bodySmall?.copyWith(
-                          color: skema.onSurfaceVariant,
-                        ),
+                        style: teks.bodySmall,
                       ),
                       if (baris.adaDiskon)
                         Text(
                           'Diskon -${formatRupiah(baris.potonganDiskon)}',
                           style: teks.bodySmall?.copyWith(
-                            color: WarnaWarkop.hijauAman,
-                            fontWeight: FontWeight.w600,
+                            color: skema.secondary,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                     ],
@@ -1231,7 +1284,10 @@ class _BarisKeranjangState extends ConsumerState<_BarisKeranjang> {
                     HapticFeedback.lightImpact();
                   },
                 ),
-                Text('${baris.jumlah}', style: teks.titleSmall),
+                Text(
+                  '${baris.jumlah}',
+                  style: TipografiWarkop.nominal.copyWith(fontSize: 16),
+                ),
                 IconButton(
                   tooltip: 'Tambah',
                   icon: const Icon(Icons.add_circle_outline),
@@ -1242,16 +1298,14 @@ class _BarisKeranjangState extends ConsumerState<_BarisKeranjang> {
                 ),
               ],
             ),
-            // Baris bawah: subtotal + aksi diskon & hapus (jempol mudah
-            // menjangkau, tidak berdesakan dengan nama).
             Row(
               children: [
                 Expanded(
                   child: Text(
                     formatRupiah(baris.subtotal),
-                    style: teks.titleSmall?.copyWith(
+                    style: TipografiWarkop.nominal.copyWith(
+                      fontSize: 16,
                       color: skema.primary,
-                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -1260,7 +1314,7 @@ class _BarisKeranjangState extends ConsumerState<_BarisKeranjang> {
                   icon: Icon(
                     Icons.percent_outlined,
                     color: baris.adaDiskon
-                        ? WarnaWarkop.hijauAman
+                        ? skema.secondary
                         : skema.onSurfaceVariant,
                   ),
                   onPressed: _aturDiskon,
@@ -1281,9 +1335,6 @@ class _BarisKeranjangState extends ConsumerState<_BarisKeranjang> {
               decoration: const InputDecoration(
                 hintText: 'Catatan (mis. es sedikit)',
                 isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(10)),
-                ),
                 contentPadding:
                     EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               ),
@@ -1298,18 +1349,17 @@ class _BarisKeranjangState extends ConsumerState<_BarisKeranjang> {
   }
 }
 
-/// Lembar bawah untuk mengatur diskon satu baris keranjang
-/// (nominal rupiah atau persen).
-class _LembarDiskonItem extends StatefulWidget {
-  const _LembarDiskonItem({required this.baris});
+/// Isi lembar atur diskon satu baris (nominal rupiah atau persen).
+class _IsiLembarDiskon extends StatefulWidget {
+  const _IsiLembarDiskon({required this.baris});
 
   final BarisKeranjang baris;
 
   @override
-  State<_LembarDiskonItem> createState() => _LembarDiskonItemState();
+  State<_IsiLembarDiskon> createState() => _IsiLembarDiskonState();
 }
 
-class _LembarDiskonItemState extends State<_LembarDiskonItem> {
+class _IsiLembarDiskonState extends State<_IsiLembarDiskon> {
   bool _modeNominal = true;
   late final TextEditingController _nilaiController;
 
@@ -1359,32 +1409,14 @@ class _LembarDiskonItemState extends State<_LembarDiskonItem> {
   @override
   Widget build(BuildContext context) {
     final teks = Theme.of(context).textTheme;
+    final skema = Theme.of(context).colorScheme;
 
-    return KartuKaca(
-      radius: 24,
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          Text(
-            'Diskon — ${widget.baris.nama}',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: teks.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 4),
           Text(
             'Harga baris ${formatRupiah(widget.baris.bruto)}',
             style: teks.bodySmall,
@@ -1424,35 +1456,33 @@ class _LembarDiskonItemState extends State<_LembarDiskonItem> {
               labelText: _modeNominal ? 'Nominal diskon' : 'Persen diskon',
               prefixText: _modeNominal ? 'Rp ' : null,
               suffixText: _modeNominal ? null : '%',
-              border: const OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(14)),
-              ),
             ),
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 8),
           Text(
             'Potongan: ${formatRupiah(_potongan)}',
-            style: teks.bodyMedium?.copyWith(
-              color: WarnaWarkop.hijauAman,
-              fontWeight: FontWeight.w600,
+            style: TipografiWarkop.nominal.copyWith(
+              fontSize: 14,
+              color: skema.secondary,
             ),
           ),
           const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
-                child: TextButton(
-                  onPressed: () => Navigator.of(context).pop(
+                child: TombolWarkop(
+                  label: 'Hapus Diskon',
+                  varian: VarianTombol.teks,
+                  saatDitekan: () => Navigator.of(context).pop(
                     const _DiskonItem(nominal: 0, persen: 0),
                   ),
-                  child: const Text('Hapus Diskon'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 flex: 2,
-                child: TombolKaca(
+                child: TombolWarkop(
                   label: 'Simpan',
                   ikon: Icons.check,
                   saatDitekan: _simpan,
@@ -1466,23 +1496,33 @@ class _LembarDiskonItemState extends State<_LembarDiskonItem> {
   }
 }
 
-/// Lembar pilih label tagihan saat menyimpan sebagai "belum bayar".
+/// Isi lembar pilih label tagihan saat menyimpan sebagai "belum bayar".
 /// Mengembalikan label final (nama ketikan menang atas pilihan meja),
 /// atau null bila dibatalkan.
-class _LembarLabelTagihan extends StatefulWidget {
-  const _LembarLabelTagihan();
+class _IsiLembarLabelTagihan extends StatefulWidget {
+  const _IsiLembarLabelTagihan();
 
   static const daftarMeja = <String>[
-    'Meja 1', 'Meja 2', 'Meja 3', 'Meja 4',
-    'Meja 5', 'Meja 6', 'Meja 7', 'Meja 8',
-    'Meja 9', 'Meja 10', 'Meja 11', 'Meja 12',
+    'Meja 1',
+    'Meja 2',
+    'Meja 3',
+    'Meja 4',
+    'Meja 5',
+    'Meja 6',
+    'Meja 7',
+    'Meja 8',
+    'Meja 9',
+    'Meja 10',
+    'Meja 11',
+    'Meja 12',
   ];
 
   @override
-  State<_LembarLabelTagihan> createState() => _LembarLabelTagihanState();
+  State<_IsiLembarLabelTagihan> createState() =>
+      _IsiLembarLabelTagihanState();
 }
 
-class _LembarLabelTagihanState extends State<_LembarLabelTagihan> {
+class _IsiLembarLabelTagihanState extends State<_IsiLembarLabelTagihan> {
   final _kontrolNama = TextEditingController();
   String _mejaTerpilih = 'Meja 1';
 
@@ -1500,75 +1540,51 @@ class _LembarLabelTagihanState extends State<_LembarLabelTagihan> {
   @override
   Widget build(BuildContext context) {
     final teks = Theme.of(context).textTheme;
-    final skema = Theme.of(context).colorScheme;
 
     return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: KartuKaca(
-        radius: 24,
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: skema.outlineVariant,
-                  borderRadius: BorderRadius.circular(2),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Pesanan dicatat dulu, pelanggan bisa nambah lagi nanti.',
+            style: teks.bodySmall,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Pilih Meja',
+            style: teks.labelLarge,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final meja in _IsiLembarLabelTagihan.daftarMeja)
+                ChipWarkop(
+                  label: meja,
+                  terpilih: _mejaTerpilih == meja,
+                  saatDitekan: () => setState(() => _mejaTerpilih = meja),
                 ),
-              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _kontrolNama,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Nama pelanggan (opsional)',
+              hintText: 'cth: Pak Budi',
             ),
-            const SizedBox(height: 12),
-            Text(
-              'Simpan Belum Bayar',
-              style: teks.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Pesanan dicatat dulu, pelanggan bisa nambah lagi nanti.',
-              style: teks.bodySmall?.copyWith(color: skema.onSurfaceVariant),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Pilih Meja',
-              style: teks.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final meja in _LembarLabelTagihan.daftarMeja)
-                  ChoiceChip(
-                    label: Text(meja),
-                    selected: _mejaTerpilih == meja,
-                    onSelected: (_) => setState(() => _mejaTerpilih = meja),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _kontrolNama,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Nama pelanggan (opsional)',
-                hintText: 'cth: Pak Budi',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TombolKaca(
-              label: 'Simpan: $_labelFinal',
-              ikon: Icons.bookmark_add_outlined,
-              saatDitekan: () => Navigator.of(context).pop(_labelFinal),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+          TombolWarkop(
+            label: 'Simpan: $_labelFinal',
+            ikon: Icons.bookmark_add_outlined,
+            saatDitekan: () => Navigator.of(context).pop(_labelFinal),
+          ),
+        ],
       ),
     );
   }

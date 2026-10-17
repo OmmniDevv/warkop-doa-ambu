@@ -5,11 +5,13 @@ import 'package:warkop_doa_ambu/fitur/void_kasbon/dialog_void.dart';
 
 import '../../app/penyedia.dart';
 import '../../app/tema/token_tipografi.dart';
-import '../../app/tema/token_warna.dart';
+
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/waktu_wib.dart';
-import '../../bersama/widget/kartu_kaca.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/pesanan.dart';
 import 'pengekspor_laporan.dart';
@@ -163,30 +165,6 @@ class _LayarLaporanState extends ConsumerState<LayarLaporan> {
                   const SizedBox(height: 16),
                   const BagianRekapMetodeBayar(),
                   const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      _ChipMetode(
-                        label: 'Semua',
-                        terpilih: _filterMetode == 'semua',
-                        saatPilih: () =>
-                            setState(() => _filterMetode = 'semua'),
-                      ),
-                      _ChipMetode(
-                        label: 'Tunai',
-                        terpilih: _filterMetode == 'tunai',
-                        saatPilih: () =>
-                            setState(() => _filterMetode = 'tunai'),
-                      ),
-                      _ChipMetode(
-                        label: 'Non-Tunai',
-                        terpilih: _filterMetode == 'non_tunai',
-                        saatPilih: () =>
-                            setState(() => _filterMetode = 'non_tunai'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
                   Text(
                     'Harian — 7 Hari Terakhir',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -213,13 +191,37 @@ class _LayarLaporanState extends ConsumerState<LayarLaporan> {
                         ),
                   ),
                   const SizedBox(height: 8),
-                  if (pesananTanggal.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Text(
-                        'Tidak ada pesanan pada tanggal ini.',
-                        textAlign: TextAlign.center,
+                  // Filter metode hanya berlaku untuk daftar pesanan di
+                  // bawah ini — bukan untuk kartu harian di atas.
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      _ChipMetode(
+                        label: 'Semua',
+                        terpilih: _filterMetode == 'semua',
+                        saatPilih: () =>
+                            setState(() => _filterMetode = 'semua'),
                       ),
+                      _ChipMetode(
+                        label: 'Tunai',
+                        terpilih: _filterMetode == 'tunai',
+                        saatPilih: () =>
+                            setState(() => _filterMetode = 'tunai'),
+                      ),
+                      _ChipMetode(
+                        label: 'Non-Tunai',
+                        terpilih: _filterMetode == 'non_tunai',
+                        saatPilih: () =>
+                            setState(() => _filterMetode = 'non_tunai'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (pesananTanggal.isEmpty)
+                    const StatusKosong(
+                      judul: 'Tidak ada pesanan',
+                      deskripsi: 'Belum ada pesanan pada tanggal ini.',
+                      inisial: 'P',
                     )
                   else
                     for (final p in pesananTanggal)
@@ -232,7 +234,9 @@ class _LayarLaporanState extends ConsumerState<LayarLaporan> {
             );
           },
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Gagal memuat laporan: $e')),
+          error: (e, _) => StatusError(
+            saatCobaLagi: () => ref.invalidate(penyediaSemuaPesanan),
+          ),
         ),
       ),
     );
@@ -274,7 +278,8 @@ class _KartuMingguan extends StatelessWidget {
     final voidCount =
         rekap.fold<int>(0, (jumlah, r) => jumlah + r.jumlahVoid);
 
-    return KartuKaca(
+    final skema = Theme.of(context).colorScheme;
+    return KartuWarkop(
       padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -290,7 +295,7 @@ class _KartuMingguan extends StatelessWidget {
                 .textTheme
                 .headlineSmall
                 ?.merge(TipografiWarkop.nominal)
-                .copyWith(color: WarnaWarkop.emas),
+                .copyWith(color: skema.tertiary),
           ),
           const SizedBox(height: 10),
           Row(
@@ -358,23 +363,26 @@ class _KartuHarian extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final skema = Theme.of(context).colorScheme;
+    final aksen = skema.primary;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: saatTap,
-          child: KartuKaca(
-            tanpaBlur: true,
-            radius: 16,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            border: terpilih ? aksen.withValues(alpha: 0.6) : null,
+      child: Container(
+        decoration: terpilih
+            ? BoxDecoration(
+                borderRadius: BorderRadius.circular(17),
+                border: Border.all(
+                  color: aksen.withValues(alpha: 0.6),
+                  width: 1.5,
+                ),
+              )
+            : null,
+        child: KartuWarkop(
+          margin: terpilih ? const EdgeInsets.all(1.5) : EdgeInsets.zero,
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          saatDitekan: saatTap,
             child: Row(
               children: [
                 Expanded(
@@ -412,7 +420,6 @@ class _KartuHarian extends StatelessWidget {
             ),
           ),
         ),
-      ),
     );
   }
 }
@@ -432,10 +439,11 @@ class _BarisPesanan extends StatelessWidget {
     final labelMetode =
         pesanan.metodeBayar == 'non_tunai' ? 'Non-Tunai' : 'Tunai';
 
+    final skema = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: KartuKaca(
-        tanpaBlur: true,
+      child: KartuWarkop(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -457,7 +465,7 @@ class _BarisPesanan extends StatelessWidget {
                   tooltip: 'Void pesanan',
                   icon: Icon(
                     Icons.delete_forever_outlined,
-                    color: WarnaWarkop.merahMenyala,
+                    color: skema.error,
                   ),
                   onPressed: () {
                     HapticFeedback.lightImpact();
@@ -482,15 +490,16 @@ class _ChipStatus extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color warna;
     final String label;
+    final skema = Theme.of(context).colorScheme;
     switch (status) {
       case 'lunas':
-        warna = WarnaWarkop.hijauAman;
+        warna = skema.secondary;
         label = 'Lunas';
       case 'void':
-        warna = WarnaWarkop.merahMenyala;
+        warna = skema.error;
         label = 'Void';
       default:
-        warna = WarnaWarkop.kuningAntre;
+        warna = skema.tertiary;
         label = 'Baru';
     }
     return Container(
@@ -610,8 +619,7 @@ class _LembarEksporState extends State<_LembarEkspor> {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final aksen = Theme.of(context).colorScheme.primary;
 
     return SafeArea(
       child: Padding(
@@ -718,7 +726,7 @@ class _LembarEksporState extends State<_LembarEkspor> {
                   setState(() => _format = pilihan.first),
             ),
             const SizedBox(height: 20),
-            TombolKaca(
+            TombolWarkop(
               label: 'Export ke ${_format.label}',
               ikon: Icons.download_outlined,
               memuat: _mengekspor,

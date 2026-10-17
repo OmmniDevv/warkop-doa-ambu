@@ -1,92 +1,162 @@
 import 'package:flutter/material.dart';
 
-/// Token warna Violet Glassmorphism — sistem desain baru Warkop Doa Ambu.
+/// Token warna Warkop Doa Ambu — sistem desain solid yang hangat.
 ///
-/// Filosofi: quiet luxury. Kaca buram premium dengan aksen violet tunggal.
-/// Tiga lapis kedalaman: atmosfer (gradien latar) → difusi (orb warna) →
-/// permukaan (kartu kaca).
+/// Filosofi: hangat seperti warkop, rapi, cepat dibaca. Permukaan solid
+/// (bukan kaca) agar 60 FPS terjaga di layar sibuk; blur hanya untuk
+/// bottom sheet & elemen mengambang.
+///
+/// Merah dicadangkan untuk bahaya/void — aksen memakai cokelat/oranye
+/// agar sinyal bahaya tidak tenggelam di antara tombol biasa.
+///
+/// Semua pasangan teks/latar ≥ 4.5:1 (terverifikasi 2026-10-17).
+/// Lihat DESIGN.md §2 untuk arah desain lengkap.
 ///
 /// Jangan pakai warna hardcoded di widget; selalu ambil dari sini lewat
 /// [Theme.of(context)] atau [WarnaWarkop].
 abstract final class WarnaWarkop {
-  // ── Aksen utama · Violet ──────────────────────────────────────────
-  /// Aksen utama: violet untuk semua elemen interaktif.
-  static const Color aksenTerang = Color(0xFF6B4EFF);
+  // ── Latar & permukaan (solid) ───────────────────────────────────
+  /// Latar dasar mode terang: krem susu hangat.
+  static const Color latarTerang = Color(0xFFFAF6EF);
 
-  /// Aksen mode gelap: violet lebih terang agar kontras di latar gelap.
-  static const Color aksenGelap = Color(0xFF9D8FFF);
+  /// Latar dasar mode gelap: espresso pekat.
+  static const Color latarGelap = Color(0xFF17110E);
 
-  /// Violet gelap untuk hover/pressed.
-  static const Color aksenGelapHover = Color(0xFF5038E0);
+  /// Permukaan kartu mode terang: putih solid.
+  static const Color kartuTerang = Color(0xFFFFFFFF);
 
-  /// Tint violet untuk latar ghost button & tag.
-  static const Color tintAksen = Color(0x1A6B4EFF);
+  /// Permukaan kartu mode gelap: cokelat tua solid.
+  static const Color kartuGelap = Color(0xFF221A16);
 
-  // ── Mode terang · Lavender Blush ──────────────────────────────────
-  /// Latar dasar lavender-blush (dipakai sebagai warna solid; gradien
-  /// lengkap digambar oleh OrbLatar).
-  static const Color kertasTerang = Color(0xFFF1EAFF);
+  /// Garis hairline mode terang (teks 12% — turunan, bukan token baru).
+  static const Color garisTerang = Color(0x1F2A1B14);
 
-  /// Permukaan kaca kuat: putih 52%.
-  static const Color kacaTerang = Color(0x85FFFFFF);
+  /// Garis hairline mode gelap (teks 12% — turunan, bukan token baru).
+  static const Color garisGelap = Color(0x1FF5EDE4);
 
-  /// Kaca sedang: putih 38%.
-  static const Color kacaTerangSedang = Color(0x61FFFFFF);
+  // ── Teks ────────────────────────────────────────────────────────
+  /// Teks utama terang: espresso.
+  static const Color teksTerang = Color(0xFF2A1B14);
 
-  /// Kaca ringan: putih 26%.
-  static const Color kacaTerangRingan = Color(0x42FFFFFF);
+  /// Teks utama gelap: krem susu.
+  static const Color teksGelap = Color(0xFFF5EDE4);
 
-  /// Border kaca: putih 68%.
-  static const Color borderKacaTerang = Color(0xADFFFFFF);
+  /// Teks sekunder terang.
+  static const Color teksSekunderTerang = Color(0xFF6B5B4F);
 
-  /// Teks utama: near-black sejuk.
-  static const Color teksTerang = Color(0xFF1E1B4B);
+  /// Teks sekunder gelap.
+  static const Color teksSekunderGelap = Color(0xFFB9A99B);
 
-  /// Teks sekunder: near-black 65%.
-  static const Color teksSekunderTerang = Color(0xA61E1B4B);
+  // ── Aksen (bukan merah) ─────────────────────────────────────────
+  /// Aksen utama terang: cokelat gula aren. Teks di atasnya: putih.
+  static const Color aksenTerang = Color(0xFF9A4A12);
 
-  // ── Mode gelap · Deep Violet Night ────────────────────────────────
-  /// Latar malam ungu pekat.
-  static const Color kertasGelap = Color(0xFF12101D);
+  /// Aksen utama gelap: oranye hangat. Teks di atasnya: #17110E.
+  static const Color aksenGelap = Color(0xFFE39A4B);
 
-  /// Permukaan kaca gelap: putih 14%.
-  static const Color kacaGelap = Color(0x24FFFFFF);
+  /// Warna teks di atas aksen terang.
+  static const Color diAtasAksenTerang = Color(0xFFFFFFFF);
 
-  /// Kaca sedang gelap: putih 10%.
-  static const Color kacaGelapSedang = Color(0x1AFFFFFF);
+  /// Warna teks di atas aksen gelap.
+  static const Color diAtasAksenGelap = Color(0xFF17110E);
 
-  /// Kaca ringan gelap: putih 6%.
-  static const Color kacaGelapRingan = Color(0x0FFFFFFF);
+  // ── Warna semantik ──────────────────────────────────────────────
+  /// Sukses mode terang.
+  static const Color suksesTerang = Color(0xFF1E7A46);
 
-  /// Border kaca gelap: putih 18%.
-  static const Color borderKacaGelap = Color(0x2EFFFFFF);
+  /// Sukses mode gelap.
+  static const Color suksesGelap = Color(0xFF5FD39A);
 
-  /// Teks utama gelap: lavender-putih.
-  static const Color teksGelap = Color(0xFFF4F1FF);
+  /// Bahaya & void mode terang (merah dicadangkan untuk ini).
+  static const Color bahayaTerang = Color(0xFFB3261E);
 
-  /// Teks sekunder gelap: lavender-putih 65%.
-  static const Color teksSekunderGelap = Color(0xA6F4F1FF);
+  /// Bahaya & void mode gelap.
+  static const Color bahayaGelap = Color(0xFFFF8F85);
 
-  // ── Warna orb (latar animasi) ─────────────────────────────────────
-  /// Orb violet utama.
-  static const Color orbViolet = Color(0xFFA78BFA);
+  /// Teks peringatan stok menipis (terang) — di atas [peringatanStokLatarTerang].
+  static const Color peringatanStokTeksTerang = Color(0xFF8A5A00);
 
-  /// Orb pink/blush.
-  static const Color orbPink = Color(0xFFF9A8D4);
+  /// Latar peringatan stok menipis (terang).
+  static const Color peringatanStokLatarTerang = Color(0xFFFBEFD0);
 
-  /// Orb oranye (aksen hangat, dipakai hemat).
-  static const Color orbOranye = Color(0xFFFB923C);
+  /// Teks peringatan stok menipis (gelap) — di atas kartu gelap.
+  static const Color peringatanStokTeksGelap = Color(0xFFF2B84B);
 
-  // ── Warna semantik (kedua mode) ───────────────────────────────────
-  /// Emas untuk badge & peringatan.
-  static const Color emas = Color(0xFFF59E0B);
+  // ── Alias usang (redesign glassmorphism → solid) ─────────────────
+  // Token-token di bawah ini dipertahankan sementara agar 40+ file yang
+  // masih memakai nama lama tetap terkompilasi. Semuanya dipetakan ke
+  // token solid baru. JANGAN dipakai di kode baru — migrasi ke token
+  // kanonis di atas. Daftar migrasi: lihat laporan step 4a.
 
-  /// Merah untuk error.
-  static const Color merahMenyala = Color(0xFFE03131);
+  /// Usang: gunakan [latarTerang].
+  @Deprecated('Gunakan latarTerang — token glassmorphism dihapus saat redesign.')
+  static const Color kertasTerang = latarTerang;
 
-  /// Hijau untuk sukses.
-  static const Color hijauAman = Color(0xFF3AB07A);
+  /// Usang: gunakan [latarGelap].
+  @Deprecated('Gunakan latarGelap — token glassmorphism dihapus saat redesign.')
+  static const Color kertasGelap = latarGelap;
 
-  /// Kuning untuk antrean offline.
-  static const Color kuningAntre = Color(0xFFF08C00);
+  /// Usang: gunakan [kartuTerang] (solid, bukan kaca).
+  @Deprecated('Gunakan kartuTerang — permukaan kini solid, bukan kaca.')
+  static const Color kacaTerang = kartuTerang;
+
+  /// Usang: gunakan [kartuTerang].
+  @Deprecated('Gunakan kartuTerang — permukaan kini solid, bukan kaca.')
+  static const Color kacaTerangSedang = kartuTerang;
+
+  /// Usang: gunakan [kartuTerang].
+  @Deprecated('Gunakan kartuTerang — permukaan kini solid, bukan kaca.')
+  static const Color kacaTerangRingan = kartuTerang;
+
+  /// Usang: gunakan [garisTerang].
+  @Deprecated('Gunakan garisTerang — token glassmorphism dihapus saat redesign.')
+  static const Color borderKacaTerang = garisTerang;
+
+  /// Usang: gunakan [kartuGelap] (solid, bukan kaca).
+  @Deprecated('Gunakan kartuGelap — permukaan kini solid, bukan kaca.')
+  static const Color kacaGelap = kartuGelap;
+
+  /// Usang: gunakan [kartuGelap].
+  @Deprecated('Gunakan kartuGelap — permukaan kini solid, bukan kaca.')
+  static const Color kacaGelapSedang = kartuGelap;
+
+  /// Usang: gunakan [kartuGelap].
+  @Deprecated('Gunakan kartuGelap — permukaan kini solid, bukan kaca.')
+  static const Color kacaGelapRingan = kartuGelap;
+
+  /// Usang: gunakan [garisGelap].
+  @Deprecated('Gunakan garisGelap — token glassmorphism dihapus saat redesign.')
+  static const Color borderKacaGelap = garisGelap;
+
+  /// Usang: gunakan [aksenTerang].
+  @Deprecated('Gunakan aksenTerang — token glassmorphism dihapus saat redesign.')
+  static const Color aksenGelapHover = aksenTerang;
+
+  /// Usang: orb latar tidak dipakai lagi di desain baru.
+  @Deprecated('Tidak dipakai — orb latar dihapus dari desain baru.')
+  static const Color orbViolet = aksenTerang;
+
+  /// Usang: orb latar tidak dipakai lagi di desain baru.
+  @Deprecated('Tidak dipakai — orb latar dihapus dari desain baru.')
+  static const Color orbPink = aksenTerang;
+
+  /// Usang: orb latar tidak dipakai lagi di desain baru.
+  @Deprecated('Tidak dipakai — orb latar dihapus dari desain baru.')
+  static const Color orbOranye = aksenGelap;
+
+  /// Usang: gunakan [peringatanStokTeksTerang].
+  @Deprecated('Gunakan peringatanStokTeksTerang — token glassmorphism dihapus saat redesign.')
+  static const Color emas = peringatanStokTeksTerang;
+
+  /// Usang: gunakan [bahayaTerang].
+  @Deprecated('Gunakan bahayaTerang — merah dicadangkan untuk bahaya/void.')
+  static const Color merahMenyala = bahayaTerang;
+
+  /// Usang: gunakan [suksesTerang].
+  @Deprecated('Gunakan suksesTerang — token glassmorphism dihapus saat redesign.')
+  static const Color hijauAman = suksesTerang;
+
+  /// Usang: gunakan [peringatanStokTeksTerang].
+  @Deprecated('Gunakan peringatanStokTeksTerang — token glassmorphism dihapus saat redesign.')
+  static const Color kuningAntre = peringatanStokTeksTerang;
 }

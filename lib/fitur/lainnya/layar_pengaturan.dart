@@ -6,9 +6,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/penyedia.dart';
 import '../../app/router.dart';
-import '../../app/tema/token_warna.dart';
-import '../../bersama/widget/kartu_kaca.dart';
-import '../../bersama/widget/orb_latar.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../dasbor/direktori_ekspor.dart';
 import '../kasir/penyedia_kasir.dart';
 
@@ -56,8 +55,9 @@ class _KartuFolderEkspor extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final folderAsync = ref.watch(penyediaFolderEkspor);
 
-    return KartuKaca(
-      tanpaBlur: true,
+    final skema = Theme.of(context).colorScheme;
+
+    return KartuWarkop(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -65,7 +65,7 @@ class _KartuFolderEkspor extends ConsumerWidget {
             children: [
               Icon(
                 Icons.folder_outlined,
-                color: WarnaWarkop.aksenTerang,
+                color: skema.primary,
                 size: 20,
               ),
               const SizedBox(width: 8),
@@ -163,14 +163,11 @@ class LayarPengaturan extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final gelap = ref.watch(penyediaModeGelap);
     final profilAsync = ref.watch(penyediaProfilPemilik);
-    final teksSekunder =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
+    final skema = Theme.of(context).colorScheme;
+    final teksSekunder = skema.onSurfaceVariant;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Kembali',
@@ -184,9 +181,8 @@ class LayarPengaturan extends ConsumerWidget {
         ),
         title: const Text('PENGATURAN'),
       ),
-      body: OrbLatar(
-        child: SafeArea(
-          child: SingleChildScrollView(
+      body: SafeArea(
+        child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -195,21 +191,20 @@ class LayarPengaturan extends ConsumerWidget {
                 profilAsync.when(
                   data: (profil) {
                     if (profil == null) return const SizedBox.shrink();
-                    return KartuKaca(
-                      tanpaBlur: true,
+                    return KartuWarkop(
                       child: Row(
                         children: [
                           Container(
                             width: 52,
                             height: 52,
                             decoration: BoxDecoration(
-                              color: WarnaWarkop.aksenTerang
-                                  .withValues(alpha: 0.14),
+                              color:
+                                  skema.primary.withValues(alpha: 0.14),
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: Icon(
                               Icons.storefront_outlined,
-                              color: WarnaWarkop.aksenTerang,
+                              color: skema.primary,
                               size: 28,
                             ),
                           ),
@@ -245,8 +240,7 @@ class LayarPengaturan extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
                 // ── Tema ─────────────────────────────────────────────
-                KartuKaca(
-                  tanpaBlur: true,
+                KartuWarkop(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 20, vertical: 8),
                   child: SwitchListTile(
@@ -263,7 +257,7 @@ class LayarPengaturan extends ConsumerWidget {
                       gelap
                           ? Icons.dark_mode_outlined
                           : Icons.light_mode_outlined,
-                      color: WarnaWarkop.aksenTerang,
+                      color: skema.primary,
                     ),
                     value: gelap,
                     onChanged: (_) {
@@ -277,8 +271,7 @@ class LayarPengaturan extends ConsumerWidget {
                 _KartuFolderEkspor(teksSekunder: teksSekunder),
                 const SizedBox(height: 16),
                 // ── Tentang ──────────────────────────────────────────
-                KartuKaca(
-                  tanpaBlur: true,
+                KartuWarkop(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -303,26 +296,16 @@ class LayarPengaturan extends ConsumerWidget {
                 ),
                 const SizedBox(height: 24),
                 // ── Keluar ───────────────────────────────────────────
-                OutlinedButton.icon(
-                  onPressed: () => _keluar(context, ref),
-                  icon: const Icon(Icons.logout_outlined),
-                  label: const Text('Keluar dari Akun Owner'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: WarnaWarkop.merahMenyala,
-                    side: BorderSide(
-                      color: WarnaWarkop.merahMenyala.withValues(alpha: 0.5),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
+                TombolWarkop(
+                  label: 'Keluar dari Akun Owner',
+                  ikon: Icons.logout_outlined,
+                  varian: VarianTombol.bahaya,
+                  saatDitekan: () => _keluar(context, ref),
                 ),
               ],
             ),
           ),
         ),
-      ),
     );
   }
 }

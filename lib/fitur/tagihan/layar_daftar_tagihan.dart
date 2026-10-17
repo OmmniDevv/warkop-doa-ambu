@@ -5,11 +5,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/router.dart';
 import '../../app/tema/token_tipografi.dart';
-import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
-import '../../bersama/widget/kartu_kaca.dart';
-import '../../bersama/widget/orb_latar.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/open_bill.dart';
 import '../../bersama/util/waktu_wib.dart';
@@ -69,11 +69,7 @@ class LayarDaftarTagihan extends ConsumerWidget {
     final daftarAsync = ref.watch(daftarOpenBillProvider);
 
     return Scaffold(
-      // AppBar transparan di atas OrbLatar — desain kaca menyatu.
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Kembali',
@@ -95,8 +91,7 @@ class LayarDaftarTagihan extends ConsumerWidget {
           ),
         ],
       ),
-      body: OrbLatar(
-        child: SafeArea(
+      body: SafeArea(
           child: Column(
             children: [
               Expanded(
@@ -108,22 +103,16 @@ class LayarDaftarTagihan extends ConsumerWidget {
                         return ListView(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.all(20),
-                          children: const [
-                            SizedBox(height: 60),
-                            KartuKaca(
-                              tanpaBlur: true,
-                              child: Column(
-                                children: [
-                                  Icon(Icons.receipt_long,
-                                      size: 44, color: Colors.grey),
-                                  SizedBox(height: 12),
-                                  Text(
-                                    'Belum ada tagihan terbuka.\n'
-                                    'Buat tagihan baru untuk mulai mencatat.',
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
+                          children: [
+                            const SizedBox(height: 60),
+                            StatusKosong(
+                              judul: 'Belum ada tagihan terbuka',
+                              deskripsi:
+                                  'Buat tagihan baru untuk mulai mencatat.',
+                              inisial: 'T',
+                              labelAksi: 'Tagihan Baru',
+                              saatAksi: () =>
+                                  context.go(Rute.tagihanBaru),
                             ),
                           ],
                         );
@@ -142,14 +131,12 @@ class LayarDaftarTagihan extends ConsumerWidget {
                     error: (_, __) => ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(20),
-                      children: const [
-                        SizedBox(height: 60),
-                        KartuKaca(
-                          tanpaBlur: true,
-                          child: Text(
-                            'Gagal memuat tagihan.\nTarik ke bawah untuk mencoba lagi.',
-                            textAlign: TextAlign.center,
-                          ),
+                      children: [
+                        const SizedBox(height: 60),
+                        StatusError(
+                          pesan:
+                              'Gagal memuat tagihan. Tarik ke bawah untuk mencoba lagi.',
+                          saatCobaLagi: () => _muatUlang(ref),
                         ),
                       ],
                     ),
@@ -158,7 +145,7 @@ class LayarDaftarTagihan extends ConsumerWidget {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                child: TombolKaca(
+                child: TombolWarkop(
                   label: 'Tagihan Baru',
                   ikon: Icons.add,
                   saatDitekan: () {
@@ -170,7 +157,6 @@ class LayarDaftarTagihan extends ConsumerWidget {
             ],
           ),
         ),
-      ),
     );
   }
 }
@@ -183,10 +169,7 @@ class _KartuTagihan extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    final teksSekunder =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
+    final skema = Theme.of(context).colorScheme;
     final ringkasanAsync = ref.watch(ringkasanTagihanProvider(tagihan.id));
 
     return Padding(
@@ -200,9 +183,8 @@ class _KartuTagihan extends ConsumerWidget {
             HapticFeedback.lightImpact();
             context.push('/tagihan/${tagihan.id}');
           },
-          child: KartuKaca(
-            tanpaBlur: true,
-            child: Row(
+          child: KartuWarkop(
+                        child: Row(
               children: [
                 Expanded(
                   child: Column(
@@ -212,7 +194,7 @@ class _KartuTagihan extends ConsumerWidget {
                         tagihan.label,
                         style: TipografiWarkop.judulBrand.copyWith(
                           fontSize: 18,
-                          color: aksen,
+                          color: skema.primary,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -223,21 +205,21 @@ class _KartuTagihan extends ConsumerWidget {
                           style: Theme.of(context)
                               .textTheme
                               .bodyMedium
-                              ?.copyWith(color: teksSekunder),
+                              ?.copyWith(color: skema.onSurfaceVariant),
                         ),
                         loading: () => Text(
                           'Memuat…',
                           style: Theme.of(context)
                               .textTheme
                               .bodyMedium
-                              ?.copyWith(color: teksSekunder),
+                              ?.copyWith(color: skema.onSurfaceVariant),
                         ),
                         error: (_, __) => Text(
                           'Ringkasan gagal dimuat',
                           style: Theme.of(context)
                               .textTheme
                               .bodyMedium
-                              ?.copyWith(color: teksSekunder),
+                              ?.copyWith(color: skema.onSurfaceVariant),
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -246,12 +228,12 @@ class _KartuTagihan extends ConsumerWidget {
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall
-                            ?.copyWith(color: teksSekunder),
+                            ?.copyWith(color: skema.onSurfaceVariant),
                       ),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right, color: teksSekunder),
+                Icon(Icons.chevron_right, color: skema.onSurfaceVariant),
               ],
             ),
           ),

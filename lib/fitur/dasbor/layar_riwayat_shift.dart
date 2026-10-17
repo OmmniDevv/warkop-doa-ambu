@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/router.dart';
-import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/waktu_wib.dart';
-import '../../bersama/widget/kartu_kaca.dart';
-import '../../bersama/widget/orb_latar.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/shift_kasir.dart';
 
@@ -42,8 +42,7 @@ class LayarRiwayatShift extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final riwayatAsync = ref.watch(penyediaRiwayatShift);
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final aksen = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
       appBar: AppBar(
@@ -60,14 +59,13 @@ class LayarRiwayatShift extends ConsumerWidget {
           },
         ),
       ),
-      body: OrbLatar(
-        child: SafeArea(
-          child: RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(penyediaRiwayatShift);
-              await ref.read(penyediaRiwayatShift.future);
-            },
-            child: riwayatAsync.when(
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(penyediaRiwayatShift);
+            await ref.read(penyediaRiwayatShift.future);
+          },
+          child: riwayatAsync.when(
               data: (daftar) {
                 if (daftar.isEmpty) {
                   return ListView(
@@ -75,13 +73,11 @@ class LayarRiwayatShift extends ConsumerWidget {
                     padding: const EdgeInsets.all(20),
                     children: const [
                       SizedBox(height: 60),
-                      KartuKaca(
-                        tanpaBlur: true,
-                        child: Text(
-                          'Belum ada riwayat shift.\n'
-                          'Shift tercatat setiap kasir buka/tutup shift.',
-                          textAlign: TextAlign.center,
-                        ),
+                      StatusKosong(
+                        judul: 'Belum ada riwayat shift',
+                        deskripsi:
+                            'Shift tercatat setiap kasir buka/tutup shift.',
+                        inisial: 'S',
                       ),
                     ],
                   );
@@ -97,13 +93,13 @@ class LayarRiwayatShift extends ConsumerWidget {
               loading: () => const Center(
                 child: CircularProgressIndicator(),
               ),
-              error: (e, _) => Center(
-                child: Text('Gagal memuat riwayat: $e'),
+              error: (e, _) => StatusError(
+                saatCobaLagi: () =>
+                    ref.invalidate(penyediaRiwayatShift),
               ),
             ),
           ),
         ),
-      ),
     );
   }
 }
@@ -119,19 +115,17 @@ class _KartuShift extends StatelessWidget {
     final shift = baris.shift;
     final buka = shift.status == 'buka';
     final selisih = shift.selisih;
+    final skema = Theme.of(context).colorScheme;
     final warnaSelisih = selisih == null
         ? null
         : selisih == 0
-            ? WarnaWarkop.hijauAman
-            : WarnaWarkop.merahMenyala;
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final teksRedup =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
+            ? skema.secondary
+            : skema.error;
+    final teksRedup = skema.onSurfaceVariant;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: KartuKaca(
-        tanpaBlur: true,
+      child: KartuWarkop(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -153,17 +147,13 @@ class _KartuShift extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
-                    color: (buka
-                            ? WarnaWarkop.kuningAntre
-                            : WarnaWarkop.hijauAman)
+                    color: (buka ? skema.tertiary : skema.secondary)
                         .withValues(alpha: 0.15),
                   ),
                   child: Text(
                     buka ? 'Buka' : 'Tutup',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: buka
-                              ? WarnaWarkop.kuningAntre
-                              : WarnaWarkop.hijauAman,
+                          color: buka ? skema.tertiary : skema.secondary,
                           fontWeight: FontWeight.w700,
                         ),
                   ),

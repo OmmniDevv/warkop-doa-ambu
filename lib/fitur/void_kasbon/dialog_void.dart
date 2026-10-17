@@ -5,14 +5,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/penyedia.dart';
-import '../../app/tema/token_warna.dart';
-import '../../bersama/util/id_unik.dart';
+import '../../bersama/widget/kartu_warkop.dart';
 import '../../bersama/widget/keypad_angka.dart';
 import '../../bersama/widget/pembungkus_goyang.dart';
 import '../../bersama/widget/titik_pin.dart';
-import '../../data/model/log_audit.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../auth_owner/service_auth_owner.dart';
 import '../kasir/penyedia_kasir.dart';
+import 'layanan_void.dart';
 
 /// Menampilkan dialog void: wajib PIN owner + alasan wajib.
 ///
@@ -129,35 +129,20 @@ class _IsiDialogVoidState extends ConsumerState<_IsiDialogVoid> {
     }
 
     final db = ref.read(penyediaDatabaseLokal);
-    final pesanan = await db.ambilPesanan(widget.idPesanan);
+    final galat = await jalankanVoid(
+      db,
+      idPesanan: widget.idPesanan,
+      alasan: alasan,
+      idAkun: ref.read(sesiKasirProvider)?.id,
+    );
     if (!mounted) return;
-    if (pesanan == null) {
+    if (galat != null) {
       setState(() => _memuat = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Pesanan tidak ditemukan. Mungkin sudah dihapus.'),
-        ),
+        SnackBar(content: Text(galat)),
       );
       return;
     }
-
-    await db.perbaruiPesanan(
-      pesanan.copyWith(
-        status: 'void',
-        voidAlasan: alasan,
-        voidDisetujuiOwner: true,
-      ),
-    );
-    await db.catatAudit(
-      LogAudit(
-        id: idBaru(),
-        aksi: 'void_pesanan',
-        idAkun: ref.read(sesiKasirProvider)?.id,
-        idReferensi: widget.idPesanan,
-        alasan: alasan,
-        dibuatPada: DateTime.now(),
-      ),
-    );
 
     HapticFeedback.heavyImpact();
     if (!mounted) return;
@@ -172,26 +157,16 @@ class _IsiDialogVoidState extends ConsumerState<_IsiDialogVoid> {
   @override
   Widget build(BuildContext context) {
     final skema = Theme.of(context).colorScheme;
-    final merah = WarnaWarkop.merahMenyala;
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final warnaKaca =
-        gelap ? WarnaWarkop.kacaGelap : WarnaWarkop.kacaTerang;
-    final warnaBorder =
-        gelap ? WarnaWarkop.borderKacaGelap : WarnaWarkop.borderKacaTerang;
+    final merah = skema.error;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: warnaKaca,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: warnaBorder, width: 1),
+    return KartuWarkop(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 24,
+        bottom: 20 + MediaQuery.of(context).viewInsets.bottom,
       ),
       child: SingleChildScrollView(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 24,
-          bottom: 20 + MediaQuery.of(context).viewInsets.bottom,
-        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -276,83 +251,25 @@ class _IsiDialogVoidState extends ConsumerState<_IsiDialogVoid> {
               Row(
                 children: [
                   Expanded(
-                    child: TextButton(
-                      onPressed: _batal,
-                      child: Text(
-                        'Batal',
-                        style: TextStyle(color: skema.onSurfaceVariant),
-                      ),
+                    child: TombolWarkop(
+                      label: 'Batal',
+                      varian: VarianTombol.teks,
+                      saatDitekan: _batal,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     flex: 2,
-                    child: _TombolVoid(saatDitekan: _prosesVoid),
+                    child: TombolWarkop(
+                      label: 'Void Sekarang',
+                      varian: VarianTombol.bahaya,
+                      ikon: Icons.delete_forever_outlined,
+                      saatDitekan: _prosesVoid,
+                    ),
                   ),
                 ],
               ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Tombol aksi destruktif — kaca merah dengan getaran berat saat ditekan.
-class _TombolVoid extends StatefulWidget {
-  const _TombolVoid({required this.saatDitekan});
-
-  final VoidCallback saatDitekan;
-
-  @override
-  State<_TombolVoid> createState() => _TombolVoidState();
-}
-
-class _TombolVoidState extends State<_TombolVoid> {
-  double _skala = 1.0;
-
-  @override
-  Widget build(BuildContext context) {
-    final merah = WarnaWarkop.merahMenyala;
-
-    return AnimatedScale(
-      scale: _skala,
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeOut,
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _skala = 0.95),
-        onTapUp: (_) => setState(() => _skala = 1.0),
-        onTapCancel: () => setState(() => _skala = 1.0),
-        onTap: () {
-          HapticFeedback.mediumImpact();
-          widget.saatDitekan();
-        },
-        child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-          decoration: BoxDecoration(
-            color: merah.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: merah.withValues(alpha: 0.6),
-              width: 1.2,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.delete_forever_outlined,
-                  color: merah, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Void Sekarang',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: merah,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ],
-          ),
         ),
       ),
     );

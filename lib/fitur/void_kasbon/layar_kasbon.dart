@@ -5,12 +5,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/penyedia.dart';
 import '../../app/tema/token_tipografi.dart';
-import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/id_unik.dart';
-import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/chip_warkop.dart';
+import '../../bersama/widget/kartu_warkop.dart';
 import '../../bersama/widget/keypad_angka.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/lembar_warkop.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/model/kasbon.dart';
 import '../../data/model/log_audit.dart';
 import '../kasir/penyedia_kasir.dart';
@@ -58,21 +61,19 @@ class _LayarKasbonState extends ConsumerState<LayarKasbon> {
   }
 
   Future<void> _bukaFormulirKasbon() async {
-    final tersimpan = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => const _LembarFormKasbon(),
+    final tersimpan = await tampilkanLembarWarkop<bool>(
+      context,
+      judul: 'Catat Kasbon Baru',
+      child: const _IsiFormKasbon(),
     );
     if (tersimpan == true) _muatUlang();
   }
 
   Future<void> _bukaBayarCicilan(Kasbon kasbon) async {
-    final terbayar = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _LembarBayarKasbon(kasbon: kasbon),
+    final terbayar = await tampilkanLembarWarkop<bool>(
+      context,
+      judul: 'Bayar Cicilan',
+      child: _IsiBayarKasbon(kasbon: kasbon),
     );
     if (terbayar == true) _muatUlang();
   }
@@ -101,11 +102,10 @@ class _LayarKasbonState extends ConsumerState<LayarKasbon> {
                   for (var i = 0; i < _labelFilter.length; i++)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: _ChipFilter(
+                      child: ChipWarkop(
                         label: _labelFilter[i],
-                        aktif: _filterAktif == i,
-                        saatDipilih: () {
-                          HapticFeedback.selectionClick();
+                        terpilih: _filterAktif == i,
+                        saatDitekan: () {
                           setState(() => _filterAktif = i);
                           _muatUlang();
                         },
@@ -127,21 +127,29 @@ class _LayarKasbonState extends ConsumerState<LayarKasbon> {
                       );
                     }
                     if (snapshot.hasError) {
-                      return _KeadaanKosong(
-                        ikon: Icons.cloud_off_outlined,
-                        pesan: 'Gagal memuat kasbon. Tarik ke bawah '
-                            'untuk coba lagi ya.',
-                        adaTombolMuatUlang: true,
-                        saatMuatUlang: _muatUlang,
+                      return ListView.builder(
+                        padding: const EdgeInsets.only(top: 64),
+                        itemCount: 1,
+                        itemBuilder: (context, _) => StatusError(
+                          pesan: 'Gagal memuat kasbon. Coba lagi ya.',
+                          saatCobaLagi: _muatUlang,
+                        ),
                       );
                     }
                     final daftar = snapshot.data ?? [];
                     if (daftar.isEmpty) {
-                      return _KeadaanKosong(
-                        ikon: Icons.receipt_long_outlined,
-                        pesan: _filterAktif == 0
-                            ? 'Belum ada catatan kasbon.'
-                            : 'Tidak ada kasbon pada filter ini.',
+                      return ListView.builder(
+                        padding: const EdgeInsets.only(top: 64),
+                        itemCount: 1,
+                        itemBuilder: (context, _) => StatusKosong(
+                          judul: 'Belum ada kasbon',
+                          deskripsi: _filterAktif == 0
+                              ? 'Belum ada catatan kasbon. Catat lewat '
+                                  'tombol di bawah ya.'
+                              : 'Tidak ada kasbon pada filter ini. '
+                                  'Coba filter lain.',
+                          inisial: 'K',
+                        ),
                       );
                     }
                     return ListView.builder(
@@ -165,54 +173,11 @@ class _LayarKasbonState extends ConsumerState<LayarKasbon> {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: TombolKaca(
+          child: TombolWarkop(
             label: 'Catat Kasbon',
             ikon: Icons.note_add_outlined,
             saatDitekan: _bukaFormulirKasbon,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Chip filter status — pill kaca, aktif memakai warna primer tema.
-class _ChipFilter extends StatelessWidget {
-  const _ChipFilter({
-    required this.label,
-    required this.aktif,
-    required this.saatDipilih,
-  });
-
-  final String label;
-  final bool aktif;
-  final VoidCallback saatDipilih;
-
-  @override
-  Widget build(BuildContext context) {
-    final skema = Theme.of(context).colorScheme;
-
-    return GestureDetector(
-      onTap: saatDipilih,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: aktif ? skema.primary : skema.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: aktif
-                ? skema.primary
-                : skema.outline.withValues(alpha: 0.4),
-          ),
-        ),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: aktif ? skema.onPrimary : skema.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
-              ),
         ),
       ),
     );
@@ -228,8 +193,8 @@ class _ChipStatus extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final lunas = status == 'lunas';
-    final warna =
-        lunas ? WarnaWarkop.hijauAman : WarnaWarkop.kuningAntre;
+    final skema = Theme.of(context).colorScheme;
+    final warna = lunas ? skema.secondary : skema.tertiary;
 
     return Container(
       padding:
@@ -266,152 +231,96 @@ class _KartuKasbon extends StatelessWidget {
     final belumLunas = kasbon.status == 'belum_lunas';
     final skema = Theme.of(context).colorScheme;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: KartuKaca(
-        tanpaBlur: true,
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    kasbon.namaPelanggan,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w700),
-                  ),
+    return KartuWarkop(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  kasbon.namaPelanggan,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
-                _ChipStatus(status: kasbon.status),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  'Sisa ',
-                  style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              _ChipStatus(status: kasbon.status),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                'Sisa ',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              Text(
+                formatRupiah(sisa),
+                style: TipografiWarkop.nominal.copyWith(
+                  fontSize: 20,
+                  color: belumLunas ? skema.tertiary : skema.secondary,
                 ),
-                Text(
-                  formatRupiah(sisa),
-                  style: TipografiWarkop.nominal.copyWith(
-                    fontSize: 20,
-                    color: belumLunas
-                        ? WarnaWarkop.kuningAntre
-                        : WarnaWarkop.hijauAman,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Total ${formatRupiah(kasbon.nominal)} · '
-              'terbayar ${formatRupiah(kasbon.sudahBayar)}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: skema.onSurfaceVariant,
-                  ),
-            ),
-            if (kasbon.jatuhTempo != null) ...[
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Icon(
-                    Icons.schedule_outlined,
-                    size: 16,
-                    color: skema.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Jatuh tempo: ${_formatTanggal(keWib(kasbon.jatuhTempo!))}',
-                    style:
-                        Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: skema.onSurfaceVariant,
-                            ),
-                  ),
-                ],
               ),
             ],
-            if (belumLunas) ...[
-              const SizedBox(height: 12),
-              TombolKaca(
-                label: 'Bayar Cicilan',
-                ikon: Icons.payments_outlined,
-                saatDitekan: saatBayar,
-              ),
-            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Total ${formatRupiah(kasbon.nominal)} · '
+            'terbayar ${formatRupiah(kasbon.sudahBayar)}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: skema.onSurfaceVariant,
+                ),
+          ),
+          if (kasbon.jatuhTempo != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(
+                  Icons.schedule_outlined,
+                  size: 16,
+                  color: skema.onSurfaceVariant,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Jatuh tempo: ${_formatTanggal(keWib(kasbon.jatuhTempo!))}',
+                  style:
+                      Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: skema.onSurfaceVariant,
+                          ),
+                ),
+              ],
+            ),
           ],
-        ),
+          if (belumLunas) ...[
+            const SizedBox(height: 12),
+            TombolWarkop(
+              label: 'Bayar Cicilan',
+              ikon: Icons.payments_outlined,
+              saatDitekan: saatBayar,
+            ),
+          ],
+        ],
       ),
     );
   }
 }
 
-/// Keadaan kosong / gagal muat — pesan ramah Bahasa Indonesia.
-class _KeadaanKosong extends StatelessWidget {
-  const _KeadaanKosong({
-    required this.ikon,
-    required this.pesan,
-    this.adaTombolMuatUlang = false,
-    this.saatMuatUlang,
-  });
-
-  final IconData ikon;
-  final String pesan;
-  final bool adaTombolMuatUlang;
-  final VoidCallback? saatMuatUlang;
-
-  @override
-  Widget build(BuildContext context) {
-    final skema = Theme.of(context).colorScheme;
-
-    return ListView(
-      children: [
-        const SizedBox(height: 80),
-        Icon(ikon, size: 64, color: skema.onSurfaceVariant),
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Text(
-            pesan,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: skema.onSurfaceVariant,
-                ),
-          ),
-        ),
-        if (adaTombolMuatUlang) ...[
-          const SizedBox(height: 16),
-          Center(
-            child: TextButton.icon(
-              onPressed: saatMuatUlang,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Muat Ulang'),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-/// Lembar bawah "Catat Kasbon": nama, nominal via keypad, jatuh tempo.
+/// Isi lembar "Catat Kasbon": nama, nominal via keypad, jatuh tempo.
 ///
-/// Dipakai di dalam [showModalBottomSheet] — keypad in-app agar keyboard
+/// Dibuka via [tampilkanLembarWarkop] — keypad in-app agar keyboard
 /// OS tidak menutupi antarmuka.
-class _LembarFormKasbon extends ConsumerStatefulWidget {
-  const _LembarFormKasbon();
+class _IsiFormKasbon extends ConsumerStatefulWidget {
+  const _IsiFormKasbon();
 
   @override
-  ConsumerState<_LembarFormKasbon> createState() =>
-      _LembarFormKasbonState();
+  ConsumerState<_IsiFormKasbon> createState() => _IsiFormKasbonState();
 }
 
-class _LembarFormKasbonState
-    extends ConsumerState<_LembarFormKasbon> {
+class _IsiFormKasbonState extends ConsumerState<_IsiFormKasbon> {
   final _kontrolNama = TextEditingController();
 
   String _nominalTeks = '';
@@ -521,142 +430,106 @@ class _LembarFormKasbonState
   @override
   Widget build(BuildContext context) {
     final skema = Theme.of(context).colorScheme;
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final warnaKaca =
-        gelap ? WarnaWarkop.kacaGelap : WarnaWarkop.kacaTerang;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: warnaKaca,
-        borderRadius:
-            const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 12,
-        bottom: 20 + MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: skema.onSurfaceVariant.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(2),
-                ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _kontrolNama,
+            enabled: !_menyimpan,
+            textCapitalization: TextCapitalization.words,
+            decoration: InputDecoration(
+              labelText: 'Nama pelanggan',
+              hintText: 'Contoh: Pak Budi',
+              prefixIcon: const Icon(Icons.person_outline_rounded),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
               ),
             ),
-            const SizedBox(height: 16),
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: Text(
+              formatRupiah(_nominal),
+              style: TipografiWarkop.nominal.copyWith(fontSize: 30),
+            ),
+          ),
+          Text(
+            'Nominal kasbon',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: skema.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: 12),
+          KeypadAngka(
+            saatAngka: _saatAngka,
+            saatHapus: _saatHapus,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                Icons.event_outlined,
+                size: 20,
+                color: skema.onSurfaceVariant,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _jatuhTempo == null
+                      ? 'Jatuh tempo: belum dipilih (opsional)'
+                      : 'Jatuh tempo: ${_formatTanggal(_jatuhTempo!)}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+              TextButton(
+                onPressed: _menyimpan ? null : _pilihJatuhTempo,
+                child: const Text('Pilih'),
+              ),
+            ],
+          ),
+          if (_pesanError != null) ...[
+            const SizedBox(height: 4),
             Text(
-              'Catat Kasbon Baru',
+              _pesanError!,
               textAlign: TextAlign.center,
               style: Theme.of(context)
                   .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _kontrolNama,
-              enabled: !_menyimpan,
-              textCapitalization: TextCapitalization.words,
-              decoration: InputDecoration(
-                labelText: 'Nama pelanggan',
-                hintText: 'Contoh: Pak Budi',
-                prefixIcon: const Icon(Icons.person_outline_rounded),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Center(
-              child: Text(
-                formatRupiah(_nominal),
-                style: TipografiWarkop.nominal.copyWith(fontSize: 30),
-              ),
-            ),
-            Text(
-              'Nominal kasbon',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: skema.onSurfaceVariant,
-                  ),
-            ),
-            const SizedBox(height: 12),
-            KeypadAngka(
-              saatAngka: _saatAngka,
-              saatHapus: _saatHapus,
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(
-                  Icons.event_outlined,
-                  size: 20,
-                  color: skema.onSurfaceVariant,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _jatuhTempo == null
-                        ? 'Jatuh tempo: belum dipilih (opsional)'
-                        : 'Jatuh tempo: ${_formatTanggal(_jatuhTempo!)}',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ),
-                TextButton(
-                  onPressed: _menyimpan ? null : _pilihJatuhTempo,
-                  child: const Text('Pilih'),
-                ),
-              ],
-            ),
-            if (_pesanError != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                _pesanError!,
-                textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: WarnaWarkop.merahMenyala),
-              ),
-            ],
-            const SizedBox(height: 12),
-            TombolKaca(
-              label: 'Simpan Kasbon',
-              ikon: Icons.save_outlined,
-              memuat: _menyimpan,
-              saatDitekan: _menyimpan ? null : _simpan,
+                  .bodyMedium
+                  ?.copyWith(color: skema.error),
             ),
           ],
-        ),
+          const SizedBox(height: 12),
+          TombolWarkop(
+            label: 'Simpan Kasbon',
+            ikon: Icons.save_outlined,
+            memuat: _menyimpan,
+            saatDitekan: _menyimpan ? null : _simpan,
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Lembar bawah "Bayar Cicilan": nominal via keypad, validasi ≤ sisa.
+/// Isi lembar "Bayar Cicilan": nominal via keypad, validasi ≤ sisa.
 ///
+/// Dibuka via [tampilkanLembarWarkop].
 /// Saat cicilan menutup sisa → status jadi 'lunas' (sudahBayar = nominal).
-class _LembarBayarKasbon extends ConsumerStatefulWidget {
-  const _LembarBayarKasbon({required this.kasbon});
+class _IsiBayarKasbon extends ConsumerStatefulWidget {
+  const _IsiBayarKasbon({required this.kasbon});
 
   final Kasbon kasbon;
 
   @override
-  ConsumerState<_LembarBayarKasbon> createState() =>
-      _LembarBayarKasbonState();
+  ConsumerState<_IsiBayarKasbon> createState() => _IsiBayarKasbonState();
 }
 
-class _LembarBayarKasbonState
-    extends ConsumerState<_LembarBayarKasbon> {
+class _IsiBayarKasbonState extends ConsumerState<_IsiBayarKasbon> {
   String _nominalTeks = '';
   String? _pesanError;
   bool _menyimpan = false;
@@ -734,82 +607,52 @@ class _LembarBayarKasbonState
   @override
   Widget build(BuildContext context) {
     final skema = Theme.of(context).colorScheme;
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final warnaKaca =
-        gelap ? WarnaWarkop.kacaGelap : WarnaWarkop.kacaTerang;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: warnaKaca,
-        borderRadius:
-            const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: skema.onSurfaceVariant.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(2),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '${widget.kasbon.namaPelanggan} · '
+            'sisa ${formatRupiah(_sisa)}',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: skema.onSurfaceVariant,
                 ),
-              ),
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: Text(
+              formatRupiah(_nominal),
+              style: TipografiWarkop.nominal.copyWith(fontSize: 30),
             ),
-            const SizedBox(height: 16),
+          ),
+          const SizedBox(height: 12),
+          KeypadAngka(
+            saatAngka: _saatAngka,
+            saatHapus: _saatHapus,
+          ),
+          if (_pesanError != null) ...[
+            const SizedBox(height: 8),
             Text(
-              'Bayar Cicilan',
+              _pesanError!,
               textAlign: TextAlign.center,
               style: Theme.of(context)
                   .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${widget.kasbon.namaPelanggan} · '
-              'sisa ${formatRupiah(_sisa)}',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: skema.onSurfaceVariant,
-                  ),
-            ),
-            const SizedBox(height: 12),
-            Center(
-              child: Text(
-                formatRupiah(_nominal),
-                style: TipografiWarkop.nominal.copyWith(fontSize: 30),
-              ),
-            ),
-            const SizedBox(height: 12),
-            KeypadAngka(
-              saatAngka: _saatAngka,
-              saatHapus: _saatHapus,
-            ),
-            if (_pesanError != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                _pesanError!,
-                textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: WarnaWarkop.merahMenyala),
-              ),
-            ],
-            const SizedBox(height: 12),
-            TombolKaca(
-              label: 'Bayar ${formatRupiah(_nominal)}',
-              ikon: Icons.payments_outlined,
-              memuat: _menyimpan,
-              saatDitekan: _menyimpan ? null : _bayar,
+                  .bodyMedium
+                  ?.copyWith(color: skema.error),
             ),
           ],
-        ),
+          const SizedBox(height: 12),
+          TombolWarkop(
+            label: 'Bayar ${formatRupiah(_nominal)}',
+            ikon: Icons.payments_outlined,
+            memuat: _menyimpan,
+            saatDitekan: _menyimpan ? null : _bayar,
+          ),
+        ],
       ),
     );
   }

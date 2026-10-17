@@ -5,9 +5,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/penyedia.dart';
 import '../../app/router.dart';
-import '../../app/tema/token_warna.dart';
 import '../../bersama/izin/layanan_izin.dart';
-import '../../bersama/widget/kartu_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_kosong.dart';
 import '../../bersama/widget/tombol_tema.dart';
 import '../../bersama/widget/keypad_angka.dart';
 import '../../bersama/widget/pembungkus_goyang.dart';
@@ -106,12 +106,12 @@ class _LayarPinKasirState extends ConsumerState<LayarPinKasir> {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
+    final skema = Theme.of(context).colorScheme;
+    final gayaTeks = Theme.of(context).textTheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('PIN KASIR'),
+        title: const Text('PIN Kasir'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Kembali ke pilih kasir',
@@ -131,35 +131,13 @@ class _LayarPinKasirState extends ConsumerState<LayarPinKasir> {
             }
             final akun = snapshot.data;
             if (snapshot.hasError || akun == null || !akun.aktif) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.person_off_outlined, size: 64, color: aksen),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Akun kasir tidak ditemukan atau nonaktif.',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          onPressed: () => context.go('/kasir'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: aksen,
-                            side: BorderSide(color: aksen),
-                            minimumSize: const Size(0, 52),
-                          ),
-                          child: const Text('Pilih Kasir Lagi'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              return StatusKosong(
+                judul: 'Akun tidak ditemukan',
+                deskripsi:
+                    'Akun kasir tidak ditemukan atau nonaktif.',
+                inisial: '?',
+                labelAksi: 'Pilih Kasir Lagi',
+                saatAksi: () => context.go('/kasir'),
               );
             }
 
@@ -167,7 +145,7 @@ class _LayarPinKasirState extends ConsumerState<LayarPinKasir> {
               padding: const EdgeInsets.all(20),
               child: PembungkusGoyang(
                 pengendali: _goyang,
-                child: KartuKaca(
+                child: KartuWarkop(
                   child: Column(
                     children: [
                       Container(
@@ -176,35 +154,35 @@ class _LayarPinKasirState extends ConsumerState<LayarPinKasir> {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: aksen.withValues(alpha: 0.15),
-                          border: Border.all(color: aksen, width: 1.5),
+                          color: skema.primary.withValues(alpha: 0.15),
+                          border:
+                              Border.all(color: skema.primary, width: 1.5),
                         ),
                         child: Text(
                           akun.nama.trim().isEmpty
                               ? '?'
                               : akun.nama.trim()[0].toUpperCase(),
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
-                              ?.copyWith(
-                                color: aksen,
-                                fontWeight: FontWeight.bold,
-                              ),
+                          style: gayaTeks.headlineSmall?.copyWith(
+                            color: skema.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
                       Text(
                         'Halo, ${akun.nama}!',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(color: aksen),
+                        style: gayaTeks.titleLarge?.copyWith(
+                          color: skema.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 6),
                       Text(
                         'Masukkan 6 digit PIN kasirmu.',
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        style: gayaTeks.bodyMedium?.copyWith(
+                          color: skema.onSurfaceVariant,
+                        ),
                       ),
                       const SizedBox(height: 28),
                       TitikPin(

@@ -5,12 +5,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/tema/token_tipografi.dart';
 import '../../app/router.dart';
-import '../../app/tema/token_warna.dart';
 import '../../bersama/format/format_uang.dart';
 import '../../bersama/util/hitung_diskon.dart';
 import '../../bersama/util/id_unik.dart';
-import '../../bersama/widget/kartu_kaca.dart';
-import '../../bersama/widget/tombol_kaca.dart';
+import '../../bersama/widget/kartu_warkop.dart';
+import '../../bersama/widget/status_error.dart';
+import '../../bersama/widget/status_kosong.dart';
+import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/log_audit.dart';
 import '../../data/model/open_bill.dart';
@@ -292,12 +293,10 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
               if (tagihan == null) {
                 return const Padding(
                   padding: EdgeInsets.all(20),
-                  child: KartuKaca(
-                    child: Text(
-                      'Tagihan tidak ditemukan.\n'
-                      'Mungkin sudah dihapus dari perangkat ini.',
-                      textAlign: TextAlign.center,
-                    ),
+                  child: StatusKosong(
+                    judul: 'Tagihan tidak ditemukan',
+                    deskripsi: 'Mungkin sudah dihapus dari perangkat ini.',
+                    inisial: 'T',
                   ),
                 );
               }
@@ -307,25 +306,21 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
                     : _tampilanNormal(tagihan, daftar),
                 loading: () =>
                     const Center(child: CircularProgressIndicator()),
-                error: (_, __) => const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: KartuKaca(
-                    child: Text(
-                      'Gagal memuat nota tagihan. Coba lagi ya.',
-                      textAlign: TextAlign.center,
-                    ),
+                error: (_, __) => Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: StatusError(
+                    pesan: 'Gagal memuat nota tagihan. Coba lagi ya.',
+                    saatCobaLagi: _segarkan,
                   ),
                 ),
               );
             },
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, __) => const Padding(
-              padding: EdgeInsets.all(20),
-              child: KartuKaca(
-                child: Text(
-                  'Gagal memuat tagihan. Coba lagi ya.',
-                  textAlign: TextAlign.center,
-                ),
+            error: (_, __) => Padding(
+              padding: const EdgeInsets.all(20),
+              child: StatusError(
+                pesan: 'Gagal memuat tagihan. Coba lagi ya.',
+                saatCobaLagi: _segarkan,
               ),
             ),
           ),
@@ -360,9 +355,8 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
                 );
               }
               if (daftar.isEmpty) {
-                return const KartuKaca(
-                  tanpaBlur: true,
-                  child: Text(
+                return const KartuWarkop(
+                                    child: Text(
                     'Belum ada nota di tagihan ini.\n'
                     'Tambah pesanan lewat tombol di bawah.',
                     textAlign: TextAlign.center,
@@ -390,7 +384,7 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TombolKaca(
+              TombolWarkop(
                 label: 'Tambah Pesanan',
                 ikon: Icons.add_shopping_cart,
                 saatDitekan: () {
@@ -400,7 +394,7 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
               ),
               const SizedBox(height: 12),
               if (bisaTutup)
-                TombolKaca(
+                TombolWarkop(
                   label: 'Tutup Tagihan',
                   ikon: Icons.lock_outline,
                   memuat: _memuat,
@@ -440,9 +434,8 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
           child: daftarBaru.isEmpty
               ? const Padding(
                   padding: EdgeInsets.all(20),
-                  child: KartuKaca(
-                    tanpaBlur: true,
-                    child: Text(
+                  child: KartuWarkop(
+                                        child: Text(
                       'Tidak ada nota aktif untuk dipisah.',
                       textAlign: TextAlign.center,
                     ),
@@ -467,14 +460,15 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TombolKaca(
+              TombolWarkop(
                 label: _terpilih.isEmpty
                     ? 'Pilih Item Dulu'
                     : 'Pisah ${_terpilih.length} Item',
                 ikon: Icons.call_split,
-                aktif: _terpilih.isNotEmpty,
                 memuat: _memisah,
-                saatDitekan: () => _pisahNotaTerpilih(daftarBaru),
+                saatDitekan: _terpilih.isNotEmpty
+                    ? () => _pisahNotaTerpilih(daftarBaru)
+                    : null,
               ),
               const SizedBox(height: 4),
               TextButton(
@@ -503,12 +497,9 @@ class _KartuRingkasan extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    final teksSekunder =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
+    final skema = Theme.of(context).colorScheme;
 
-    return KartuKaca(
+    return KartuWarkop(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -519,15 +510,15 @@ class _KartuRingkasan extends StatelessWidget {
                   tagihan.label,
                   style: TipografiWarkop.judulBrand.copyWith(
                     fontSize: 22,
-                    color: aksen,
+                    color: skema.primary,
                   ),
                 ),
               ),
               _ChipStatus(
                 label: tagihan.status == 'buka' ? 'Terbuka' : 'Tutup',
                 warna: tagihan.status == 'buka'
-                    ? WarnaWarkop.hijauAman
-                    : teksSekunder,
+                    ? skema.secondary
+                    : skema.onSurfaceVariant,
               ),
             ],
           ),
@@ -553,7 +544,7 @@ class _KartuRingkasan extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
-                ?.copyWith(color: teksSekunder),
+                ?.copyWith(color: skema.onSurfaceVariant),
           ),
         ],
       ),
@@ -574,10 +565,7 @@ class _StatMini extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    final teksSekunder =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
+    final skema = Theme.of(context).colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -587,7 +575,7 @@ class _StatMini extends StatelessWidget {
           style: Theme.of(context)
               .textTheme
               .bodySmall
-              ?.copyWith(color: teksSekunder),
+              ?.copyWith(color: skema.onSurfaceVariant),
         ),
         const SizedBox(height: 2),
         Text(
@@ -597,7 +585,7 @@ class _StatMini extends StatelessWidget {
                   : Theme.of(context).textTheme.titleLarge!)
               .copyWith(
             fontWeight: FontWeight.w700,
-            color: sorot ? aksen : null,
+            color: sorot ? skema.primary : null,
           ),
         ),
       ],
@@ -619,11 +607,12 @@ class _KartuPesanan extends ConsumerWidget {
   final VoidCallback saatBayar;
   final VoidCallback saatVoid;
 
-  Color _warnaStatus(String status) {
+  Color _warnaStatus(BuildContext context, String status) {
+    final skema = Theme.of(context).colorScheme;
     return switch (status) {
-      'lunas' => WarnaWarkop.hijauAman,
-      'void' => WarnaWarkop.merahMenyala,
-      _ => WarnaWarkop.kuningAntre,
+      'lunas' => skema.secondary,
+      'void' => skema.error,
+      _ => skema.tertiary,
     };
   }
 
@@ -638,9 +627,9 @@ class _KartuPesanan extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final masihBaru = pesanan.status == 'baru';
+    final skema = Theme.of(context).colorScheme;
 
-    return KartuKaca(
-      tanpaBlur: true,
+    return KartuWarkop(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -657,7 +646,7 @@ class _KartuPesanan extends ConsumerWidget {
               ),
               _ChipStatus(
                 label: _labelStatus(pesanan.status),
-                warna: _warnaStatus(pesanan.status),
+                warna: _warnaStatus(context, pesanan.status),
               ),
             ],
           ),
@@ -697,7 +686,7 @@ class _KartuPesanan extends ConsumerWidget {
                 IconButton(
                   onPressed: saatVoid,
                   icon: const Icon(Icons.delete_outline),
-                  color: WarnaWarkop.merahMenyala,
+                  color: skema.error,
                   tooltip: 'Void nota',
                 ),
               ],
@@ -838,13 +827,11 @@ class _LembarRincian extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rincianAsync = ref.watch(rincianPesananProvider(pesanan.id));
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final teksSekunder =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
+    final skema = Theme.of(context).colorScheme;
 
     return Container(
       margin: const EdgeInsets.all(16),
-      child: KartuKaca(
+      child: KartuWarkop(
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(context).size.height * 0.65,
@@ -870,7 +857,7 @@ class _LembarRincian extends ConsumerWidget {
                         style: Theme.of(context)
                             .textTheme
                             .bodyMedium
-                            ?.copyWith(color: teksSekunder),
+                            ?.copyWith(color: skema.onSurfaceVariant),
                       );
                     }
                     return ListView.separated(
@@ -906,7 +893,7 @@ class _LembarRincian extends ConsumerWidget {
                                           style: Theme.of(context)
                                               .textTheme
                                               .bodySmall
-                                              ?.copyWith(color: teksSekunder),
+                                              ?.copyWith(color: skema.onSurfaceVariant),
                                         ),
                                     ],
                                   ),
@@ -954,7 +941,7 @@ class _LembarRincian extends ConsumerWidget {
                                         _hapusItem(context, ref, r),
                                     icon: const Icon(
                                         Icons.delete_outline),
-                                    color: WarnaWarkop.merahMenyala,
+                                    color: skema.error,
                                     tooltip: 'Hapus item',
                                     visualDensity:
                                         VisualDensity.compact,
@@ -1059,18 +1046,14 @@ class _KelompokPisah extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final gelap = Theme.of(context).brightness == Brightness.dark;
-    final aksen = gelap ? WarnaWarkop.aksenGelap : WarnaWarkop.aksenTerang;
-    final teksSekunder =
-        gelap ? WarnaWarkop.teksSekunderGelap : WarnaWarkop.teksSekunderTerang;
+    final skema = Theme.of(context).colorScheme;
     final rincianAsync = ref.watch(rincianPesananProvider(pesanan.id));
 
     return rincianAsync.when(
       data: (daftar) {
         if (daftar.isEmpty) return const SizedBox.shrink();
-        return KartuKaca(
-          tanpaBlur: true,
-          padding: const EdgeInsets.symmetric(vertical: 8),
+        return KartuWarkop(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1090,7 +1073,7 @@ class _KelompokPisah extends ConsumerWidget {
                     HapticFeedback.selectionClick();
                     saatUbah(r.id, nilai ?? false);
                   },
-                  activeColor: aksen,
+                  activeColor: skema.primary,
                   controlAffinity: ListTileControlAffinity.leading,
                   title: Text(
                     '${r.namaSnapshot} × ${r.jumlah}',
@@ -1102,7 +1085,7 @@ class _KelompokPisah extends ConsumerWidget {
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
-                              ?.copyWith(color: teksSekunder),
+                              ?.copyWith(color: skema.onSurfaceVariant),
                         )
                       : null,
                   secondary: Text(
