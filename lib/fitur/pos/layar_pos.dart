@@ -372,6 +372,7 @@ class _LayarPosState extends ConsumerState<LayarPos> {
                         namaKasir: kasir.nama,
                         saatKeluar: _keluar,
                         saatSinkron: _sinkronManual,
+                        idTagihan: widget.idTagihan,
                       ),
                       if (widget.idTagihan != null)
                         _ChipTagihan(idTagihan: widget.idTagihan!),
@@ -481,16 +482,20 @@ class _LayarPosState extends ConsumerState<LayarPos> {
 }
 
 /// Header: judul + nama kasir + indikator sinkron + tombol keluar.
+/// Bila [idTagihan] diisi (mode tambah ke open bill): tampilkan tombol
+/// kembali ke detail tagihan + label tagihan.
 class _HeaderKasir extends ConsumerWidget {
   const _HeaderKasir({
     required this.namaKasir,
     required this.saatKeluar,
     required this.saatSinkron,
+    this.idTagihan,
   });
 
   final String namaKasir;
   final VoidCallback saatKeluar;
   final VoidCallback saatSinkron;
+  final String? idTagihan;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -524,9 +529,22 @@ class _HeaderKasir extends ConsumerWidget {
         children: [
           Row(
             children: [
+              // Mode open bill: tombol kembali ke detail tagihan.
+              if (idTagihan != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: IconButton(
+                    tooltip: 'Kembali ke tagihan',
+                    icon: const Icon(Icons.arrow_back_outlined, size: 20),
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      context.go('/tagihan/$idTagihan');
+                    },
+                  ),
+                ),
               Expanded(
                 child: Text(
-                  'Kasir POS',
+                  idTagihan != null ? 'Tambah ke Tagihan' : 'Kasir POS',
                   style: teks.titleLarge,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
