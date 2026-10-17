@@ -1,92 +1,113 @@
 import 'package:flutter/material.dart';
 
-/// Token warna Warkop Doa Ambu — sistem desain solid yang hangat.
+/// Token warna Warkop Doa Ambu — Gojek/GoPay-inspired.
 ///
-/// Filosofi: hangat seperti warkop, rapi, cepat dibaca. Permukaan solid
-/// (bukan kaca) agar 60 FPS terjaga di layar sibuk; blur hanya untuk
-/// bottom sheet & elemen mengambang.
+/// Filosofi: kejelasan dan kepercayaan ala fintech Indonesia — hijau tua
+/// yang confident untuk aksi utama, permukaan putih/off-white yang bersih,
+/// border halus sebelum shadow. Bukan copy logo/aset Gojek/GoPay.
 ///
-/// Merah dicadangkan untuk bahaya/void — aksen memakai cokelat/oranye
-/// agar sinyal bahaya tidak tenggelam di antara tombol biasa.
+/// Permukaan solid (bukan kaca) agar 60 FPS terjaga di layar sibuk; blur
+/// hanya untuk bottom sheet & elemen mengambang.
 ///
-/// Semua pasangan teks/latar ≥ 4.5:1 (terverifikasi 2026-10-17).
-/// Lihat DESIGN.md §2 untuk arah desain lengkap.
+/// Merah dicadangkan untuk bahaya/void.
+///
+/// Semua pasangan teks/latar ≥ 4.5:1 (WCAG AA).
+/// Lihat DESIGN.md untuk kontrak desain lengkap.
 ///
 /// Jangan pakai warna hardcoded di widget; selalu ambil dari sini lewat
 /// [Theme.of(context)] atau [WarnaWarkop].
 abstract final class WarnaWarkop {
   // ── Latar & permukaan (solid) ───────────────────────────────────
-  /// Latar dasar mode terang: krem susu hangat.
-  static const Color latarTerang = Color(0xFFFAF6EF);
+  /// Latar dasar mode terang: off-white kehijauan.
+  static const Color latarTerang = Color(0xFFF6F8F6);
 
-  /// Latar dasar mode gelap: espresso pekat.
-  static const Color latarGelap = Color(0xFF17110E);
+  /// Latar dasar mode gelap: hijau-hitam pekat.
+  static const Color latarGelap = Color(0xFF101714);
 
   /// Permukaan kartu mode terang: putih solid.
   static const Color kartuTerang = Color(0xFFFFFFFF);
 
-  /// Permukaan kartu mode gelap: cokelat tua solid.
-  static const Color kartuGelap = Color(0xFF221A16);
+  /// Permukaan kartu mode gelap: hijau tua solid.
+  static const Color kartuGelap = Color(0xFF18211C);
 
-  /// Garis hairline mode terang (teks 12% — turunan, bukan token baru).
-  static const Color garisTerang = Color(0x1F2A1B14);
+  /// Panel tenang / filter terpilih (terang).
+  static const Color permukaanLembutTerang = Color(0xFFEAF2EC);
 
-  /// Garis hairline mode gelap (teks 12% — turunan, bukan token baru).
-  static const Color garisGelap = Color(0x1FF5EDE4);
+  /// Panel tenang / filter terpilih (gelap).
+  static const Color permukaanLembutGelap = Color(0xFF202D25);
+
+  /// Garis hairline / border mode terang.
+  static const Color garisTerang = Color(0xFFDCE5DE);
+
+  /// Garis hairline / border mode gelap.
+  static const Color garisGelap = Color(0xFF2D3B32);
 
   // ── Teks ────────────────────────────────────────────────────────
-  /// Teks utama terang: espresso.
-  static const Color teksTerang = Color(0xFF2A1B14);
+  /// Teks utama terang.
+  static const Color teksTerang = Color(0xFF17231D);
 
-  /// Teks utama gelap: krem susu.
-  static const Color teksGelap = Color(0xFFF5EDE4);
+  /// Teks utama gelap.
+  static const Color teksGelap = Color(0xFFF2F7F3);
 
   /// Teks sekunder terang.
-  static const Color teksSekunderTerang = Color(0xFF6B5B4F);
+  static const Color teksSekunderTerang = Color(0xFF59675F);
 
   /// Teks sekunder gelap.
-  static const Color teksSekunderGelap = Color(0xFFB9A99B);
+  static const Color teksSekunderGelap = Color(0xFFB3C0B7);
 
-  // ── Aksen (bukan merah) ─────────────────────────────────────────
-  /// Aksen utama terang: cokelat gula aren. Teks di atasnya: putih.
-  static const Color aksenTerang = Color(0xFF9A4A12);
+  // ── Aksen: hijau confident ──────────────────────────────────────
+  /// Aksen utama terang: hijau tua. Teks di atasnya: putih.
+  static const Color aksenTerang = Color(0xFF087F5B);
 
-  /// Aksen utama gelap: oranye hangat. Teks di atasnya: #17110E.
-  static const Color aksenGelap = Color(0xFFE39A4B);
+  /// Aksen utama gelap: hijau terang. Teks di atasnya: #08251A.
+  static const Color aksenGelap = Color(0xFF38B889);
+
+  /// Aksen saat ditekan (terang).
+  static const Color aksenTekanTerang = Color(0xFF066849);
+
+  /// Aksen saat ditekan (gelap).
+  static const Color aksenTekanGelap = Color(0xFF2A9A70);
 
   /// Warna teks di atas aksen terang.
   static const Color diAtasAksenTerang = Color(0xFFFFFFFF);
 
   /// Warna teks di atas aksen gelap.
-  static const Color diAtasAksenGelap = Color(0xFF17110E);
+  static const Color diAtasAksenGelap = Color(0xFF08251A);
 
   // ── Warna semantik ──────────────────────────────────────────────
   /// Sukses mode terang.
-  static const Color suksesTerang = Color(0xFF1E7A46);
+  static const Color suksesTerang = Color(0xFF18794E);
 
   /// Sukses mode gelap.
-  static const Color suksesGelap = Color(0xFF5FD39A);
+  static const Color suksesGelap = Color(0xFF62D6A0);
 
   /// Bahaya & void mode terang (merah dicadangkan untuk ini).
-  static const Color bahayaTerang = Color(0xFFB3261E);
+  static const Color bahayaTerang = Color(0xFFB42318);
 
   /// Bahaya & void mode gelap.
   static const Color bahayaGelap = Color(0xFFFF8F85);
+
+  /// Info mode terang.
+  static const Color infoTerang = Color(0xFF175CD3);
+
+  /// Info mode gelap.
+  static const Color infoGelap = Color(0xFF84ADFF);
 
   /// Teks peringatan stok menipis (terang) — di atas [peringatanStokLatarTerang].
   static const Color peringatanStokTeksTerang = Color(0xFF8A5A00);
 
   /// Latar peringatan stok menipis (terang).
-  static const Color peringatanStokLatarTerang = Color(0xFFFBEFD0);
+  static const Color peringatanStokLatarTerang = Color(0xFFFFF2D2);
 
   /// Teks peringatan stok menipis (gelap) — di atas kartu gelap.
-  static const Color peringatanStokTeksGelap = Color(0xFFF2B84B);
+  static const Color peringatanStokTeksGelap = Color(0xFFF4C15D);
+
+  /// Latar peringatan stok menipis (gelap).
+  static const Color peringatanStokLatarGelap = Color(0xFF3A2E18);
 
   // ── Alias usang (redesign glassmorphism → solid) ─────────────────
-  // Token-token di bawah ini dipertahankan sementara agar 40+ file yang
-  // masih memakai nama lama tetap terkompilasi. Semuanya dipetakan ke
-  // token solid baru. JANGAN dipakai di kode baru — migrasi ke token
-  // kanonis di atas. Daftar migrasi: lihat laporan step 4a.
+  // Token-token di bawah ini dipertahankan sementara agar file yang
+  // masih memakai nama lama tetap terkompilasi. JANGAN dipakai di kode baru.
 
   /// Usang: gunakan [latarTerang].
   @Deprecated('Gunakan latarTerang — token glassmorphism dihapus saat redesign.')

@@ -4,9 +4,9 @@ import 'package:flutter/services.dart';
 import 'token_tipografi.dart';
 import 'token_warna.dart';
 
-/// Membangun [ThemeData] desain solid hangat Warkop Doa Ambu.
+/// Membangun [ThemeData] Gojek/GoPay-inspired Warkop Doa Ambu.
 ///
-/// [gelap] = false → mode terang (krem susu), true → mode gelap (espresso).
+/// [gelap] = false → mode terang (off-white kehijauan), true → mode gelap.
 /// Token warna kanonis ada di [WarnaWarkop]; warna pendukung di bawah ini
 /// DITURUNKAN dari token kanonis (bukan token baru).
 ThemeData bangunTema({required bool gelap}) {
@@ -43,7 +43,7 @@ ThemeData bangunTema({required bool gelap}) {
     tertiary: peringatanStokTeks,
     onTertiary: gelap ? WarnaWarkop.latarGelap : Colors.white,
     tertiaryContainer: gelap
-        ? kartu
+        ? WarnaWarkop.peringatanStokLatarGelap
         : WarnaWarkop.peringatanStokLatarTerang,
     onTertiaryContainer: peringatanStokTeks,
     error: bahaya,
