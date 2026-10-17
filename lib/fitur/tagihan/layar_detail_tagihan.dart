@@ -20,7 +20,8 @@ import '../../data/model/pesanan_rincian.dart';
 import '../../data/model/shift_kasir.dart';
 import '../kasir/penyedia_kasir.dart';
 import '../void_kasbon/dialog_void.dart';
-import 'layar_daftar_tagihan.dart' show formatWaktuSingkat;
+import 'layar_daftar_tagihan.dart'
+    show formatWaktuSingkat, daftarOpenBillProvider;
 
 /// Satu tagihan terbuka.
 final openBillProvider =
@@ -104,6 +105,8 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
       await DatabaseLokal.instance
           .perbaruiOpenBill(tagihan.copyWith(status: 'tutup'));
       if (!mounted) return;
+      // Refresh daftar tagihan agar yang baru ditutup hilang dari list.
+      ref.invalidate(daftarOpenBillProvider);
       context.go(Rute.kasirTagihan);
     } catch (_) {
       _pesan('Gagal menutup tagihan. Coba lagi ya.');
