@@ -20,6 +20,9 @@ import '../../bersama/widget/tombol_warkop.dart';
 import '../../data/lokal/database_lokal.dart';
 import '../../data/model/log_audit.dart';
 import '../../data/model/pesanan.dart';
+import '../tagihan/layar_daftar_tagihan.dart' show daftarOpenBillProvider;
+import '../tagihan/layar_detail_tagihan.dart'
+    show openBillProvider, daftarPesananTagihanProvider;
 import '../../data/model/pesanan_bayar.dart';
 import '../../data/model/pesanan_rincian.dart';
 import '../kasir/penyedia_kasir.dart';
@@ -381,6 +384,11 @@ class _LayarBayarState extends ConsumerState<LayarBayar> {
       );
       if (!mounted) return;
       if (idOpenBill != null) {
+        // Refresh data tagihan agar status nota yang baru dibayar
+        // langsung terlihat (tidak stuck di "Baru").
+        ref.invalidate(daftarPesananTagihanProvider(idOpenBill));
+        ref.invalidate(openBillProvider(idOpenBill));
+        ref.invalidate(daftarOpenBillProvider);
         context.go('/tagihan/$idOpenBill');
       } else {
         context.go(Rute.kasirPos);
