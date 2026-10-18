@@ -102,8 +102,14 @@ class _LayarDetailTagihanState extends ConsumerState<LayarDetailTagihan> {
     }
     setState(() => _memuat = true);
     try {
-      await DatabaseLokal.instance
-          .perbaruiOpenBill(tagihan.copyWith(status: 'tutup'));
+      // PENTING: update diperbaruiPada ke sekarang agar sync last-write-wins
+      // tidak menimpa status 'tutup' dengan 'buka' dari server yang lebih baru.
+      // statusSinkron 'tertunda' agar perubahan ikut terunggah.
+      await DatabaseLokal.instance.perbaruiOpenBill(tagihan.copyWith(
+        status: 'tutup',
+        diperbaruiPada: DateTime.now(),
+        statusSinkron: 'tertunda',
+      ));
       if (!mounted) return;
       // Refresh daftar tagihan agar yang baru ditutup hilang dari list.
       ref.invalidate(daftarOpenBillProvider);
